@@ -26,22 +26,13 @@ const theme = {
   yellow: "#f5c518",
 };
 
-// ---------- Mock data ----------
-const ADMIN_TELEGRAM_ID = 123456789; // TODO: заменить на свой реальный Telegram ID
-const currentTelegramId = 123456789; // MOCK: в реальном приложении берётся из Telegram.WebApp.initDataUnsafe.user.id
+// ---------- Реальные настройки ----------
+const ADMIN_TELEGRAM_ID = 2145640263; // твой Telegram ID — админка видна только тебе
+const BOT_USERNAME = "Ad_nex_bot"; // username бота без @
 
-const mockPendingWithdrawals = [
-  { id: 101, username: "@akbar_dev", amount: 2.4, currency: "USDT TON", wallet: "UQAowo...lDpQ", date: "14 авг" },
-  { id: 102, username: "@shoxrux99", amount: 3.1, currency: "USDT TON", wallet: "UQBEE9...H6zm", date: "14 авг" },
-  { id: 103, username: "@nodira_m", amount: 70, currency: "Звёзды TG", wallet: "@nodira_m", date: "13 авг" },
-];
+const mockPendingWithdrawals = []; // заявки на вывод появятся здесь по мере поступления от пользователей
 
-const mockUsersList = [
-  { id: 1, username: "@akbar_dev", balance: 2.4, referrals: 4, blocked: false },
-  { id: 2, username: "@shoxrux99", balance: 3.1, referrals: 13, blocked: false },
-  { id: 3, username: "@spammer_bot1", balance: 0.02, referrals: 0, blocked: true },
-  { id: 4, username: "@nodira_m", balance: 1.25, referrals: 2, blocked: false },
-];
+const mockUsersList = []; // список пользователей будет наполняться реальными данными из БД
 
 const mockWheelSegments = [
   { id: "w1", label: "$0.001", value: 0.001 },
@@ -117,7 +108,7 @@ const mockCases = [
   },
   {
     id: "friends5", title: "Кейс «Пригласи 5 друзей»", desc: "Разовая награда", type: "once",
-    requiredRefs: 5, currentRefs: 3, opened: false,
+    requiredRefs: 5, currentRefs: 0, opened: false,
     pool: [
       { id: "p1", amount: 0.03, percent: 35, quantity: 999 },
       { id: "p2", amount: 0.08, percent: 30, quantity: 200 },
@@ -129,30 +120,25 @@ const mockCases = [
 ];
 
 const mockUser = {
-  balance: 0.1045,
+  balance: 0,
   minWithdraw: 2,
   todayViews: 0,
   todayEarned: 0,
-  checkinDay: 2,
+  checkinDay: 0,
   checkinTotal: 21,
-  totalEarned: 0.1045,
+  totalEarned: 0,
   adsWatchedTotal: 0,
 };
 
 const mockReferrals = {
-  count: 13,
-  earned: 5.6988,
-  link: "https://t.me/earnadsbot?startapp=g7YYIgfm",
+  count: 0,
+  earned: 0,
+  link: "", // подставится реальная ссылка после авторизации через Telegram
   percent: 20,
   firstBonus: 0.01,
 };
 
-const mockWithdrawHistory = [
-  { amount: 3.06, network: "TON", addr: "UQAowo...lDpQ", date: "30 апр", status: "Выплачено" },
-  { amount: 3.37, network: "TON", addr: "UQAowo...lDpQ", date: "11 апр", status: "Выплачено" },
-  { amount: 3.02, network: "TON", addr: "UQBEE9...H6zm", date: "08 апр", status: "Выплачено" },
-  { amount: 3.03, network: "TON", addr: "UQAowo...lDpQ", date: "04 апр", status: "Выплачено" },
-];
+const mockWithdrawHistory = []; // история выводов пуста, пока пользователь не сделает первый вывод
 
 const mockAdNetworks = [
   { id: "adsgram", name: "Adsgram", reward: 0.0002, viewsToday: 0, dailyLimit: 50, enabled: true },
@@ -1789,6 +1775,38 @@ export default function App() {
   const [cases, setCases] = useState(mockCases);
   const [promoCode, setPromoCode] = useState("");
 
+  // ---- Реальная авторизация через Telegram + бэкенд ----
+  const [authData, setAuthData] = useState(null); // { telegramId, username, balance, referralCode, ... }
+
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg || !tg.initData) return; // не в Telegram (просто открыли в браузере) — работаем на моках
+    tg.ready();
+    fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) {
+          console.error("Auth error:", data.error);
+          return;
+        }
+        setAuthData(data);
+        // подставляем реальный баланс с сервера вместо мокового
+        setUser((u) => ({ ...u, balance: data.balance, totalEarned: data.totalEarned }));
+      })
+      .catch((err) => console.error("Auth request failed:", err));
+  }, []);
+
+  const referralLink = authData?.referralCode
+    ? `https://t.me/${BOT_USERNAME}?startapp=${authData.referralCode}`
+    : mockReferrals.link; // пока не авторизовались (или открыто вне Telegram) — ссылки ещё нет
+
+  // Реальный Telegram ID текущего пользователя — берём напрямую из Telegram.WebApp,
+  // не дожидаясь ответа бэкенда, чтобы админка появлялась сразу.
+  const currentTelegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id ?? null;
   const isAdmin = currentTelegramId === ADMIN_TELEGRAM_ID;
 
   useEffect(() => {
@@ -2023,13 +2041,13 @@ export default function App() {
           onOpenCase={handleOpenCase}
           onWatchCaseAd={handleWatchCaseAd}
           onInviteFriends={handleInviteFriends}
-          referralLink={mockReferrals.link}
+          referralLink={referralLink}
           promoCode={promoCode}
           setPromoCode={setPromoCode}
           onRedeemPromo={handleRedeemPromo}
         />
       )}
-      {screen === "referrals" && <ReferralsScreen data={mockReferrals} />}
+      {screen === "referrals" && <ReferralsScreen data={{ ...mockReferrals, link: referralLink }} />}
       {screen === "withdraw" && <WithdrawScreen user={user} history={mockWithdrawHistory} />}
 
       {adminOpen && (
