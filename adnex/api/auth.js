@@ -5,6 +5,14 @@ function generateReferralCode() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+async function fetchActions(pool, userId) {
+  const res = await pool.query(
+    "SELECT action_key, action_date::text as action_date, value FROM daily_actions WHERE user_id = $1",
+    [userId]
+  );
+  return res.rows;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -33,12 +41,14 @@ export default async function handler(req, res) {
 
     if (existing.rows.length > 0) {
       const u = existing.rows[0];
+      const actions = await fetchActions(pool, u.id);
       return res.status(200).json({
         telegramId: u.telegram_id,
         username: u.username,
         balance: Number(u.balance),
         totalEarned: Number(u.total_earned),
         referralCode: u.referral_code,
+        actions,
       });
     }
 
@@ -66,6 +76,7 @@ export default async function handler(req, res) {
       totalEarned: Number(u.total_earned),
       referralCode: u.referral_code,
       referredBy: referredById,
+      actions: [],
     });
   } catch (err) {
     console.error(err);
