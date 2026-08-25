@@ -32,8 +32,6 @@ const BOT_USERNAME = "Ad_nex_bot"; // username бота без @
 
 const mockPendingWithdrawals = []; // заявки на вывод появятся здесь по мере поступления от пользователей
 
-const mockUsersList = []; // список пользователей будет наполняться реальными данными из БД
-
 const mockWheelSegments = [
   { id: "w1", label: "$0.001", value: 0.001 },
   { id: "w2", label: "$0.0005", value: 0.0005 },
@@ -352,7 +350,7 @@ function HomeScreen({ user, onWatchAd, adNetworks }) {
   );
 }
 
-function TasksScreen({ tasks, onClaim, user }) {
+function TasksScreen({ tasks, onClaim, user, checkedInToday, onCheckin }) {
   const openCount = tasks.filter((t) => t.status === "open").length;
 
   return (
@@ -364,16 +362,22 @@ function TasksScreen({ tasks, onClaim, user }) {
         </p>
       </div>
 
-      <Card style={{ padding: 16, display: "flex", alignItems: "center", gap: 12, background: `linear-gradient(90deg, ${theme.card}, ${theme.panelAlt})` }}>
+      <Card style={{ padding: 16, display: "flex", alignItems: "center", gap: 12, background: `linear-gradient(90deg, ${theme.card}, ${theme.panelAlt})`, opacity: checkedInToday ? 0.6 : 1 }}>
         <span style={{ fontSize: 24 }}>🎁</span>
         <div style={{ flex: 1 }}>
           <p style={{ color: theme.white, fontSize: 15, fontWeight: 500 }}>Ежедневный чек-ин</p>
           <p style={{ color: theme.textMuted, fontSize: 14 }}>
-            День {user.checkinDay}/{user.checkinTotal} — награда доступна!
+            {checkedInToday
+              ? `Заходили сегодня — приходи завтра`
+              : `День ${user.checkinDay + 1}/${user.checkinTotal} — награда доступна!`}
           </p>
         </div>
-        <button style={{ color: theme.cyan, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 2, background: "none" }}>
-          Забрать <ChevronRight size={16} />
+        <button
+          onClick={onCheckin}
+          disabled={checkedInToday}
+          style={{ color: checkedInToday ? theme.textFaint : theme.cyan, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 2, background: "none" }}
+        >
+          {checkedInToday ? "Получено" : "Забрать"} <ChevronRight size={16} />
         </button>
       </Card>
 
@@ -1548,29 +1552,29 @@ function AdminCases({ cases, onUpdatePoolItem, onAddPoolItem, onDeletePoolItem }
   );
 }
 
-function AdminUsers({ users, onToggleBlock }) {
+function AdminUsers({ users, loading }) {
+  if (loading) {
+    return <p style={{ color: theme.textFaint, fontSize: 14, textAlign: "center", padding: "24px 0" }}>Загрузка...</p>;
+  }
+  if (users.length === 0) {
+    return <p style={{ color: theme.textFaint, fontSize: 14, textAlign: "center", padding: "24px 0" }}>Пока никто не заходил в приложение</p>;
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {users.map((u) => (
-        <Card key={u.id} style={{ padding: 12, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ color: theme.white, fontSize: 14, fontWeight: 500 }}>{u.username}</p>
-            <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-              ${u.balance.toFixed(4)} · {u.referrals} реф.
+        <Card key={u.id} style={{ padding: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>
+              {u.username ? `@${u.username}` : `ID ${u.telegramId}`}
             </p>
+            <p style={{ color: theme.accentLight, fontSize: 14, fontWeight: 600 }}>${u.balance.toFixed(4)}</p>
           </div>
-          {u.blocked && (
-            <span style={{ color: "rgba(255,90,90,0.9)", fontSize: 11, fontWeight: 600, backgroundColor: "rgba(255,90,90,0.12)", padding: "3px 8px", borderRadius: 9999 }}>
-              Заблокирован
-            </span>
-          )}
-          <button onClick={() => onToggleBlock(u.id)} style={{ background: "none" }}>
-            {u.blocked ? (
-              <ShieldCheck size={18} style={{ color: theme.cyan }} />
-            ) : (
-              <ShieldOff size={18} style={{ color: theme.textMuted }} />
-            )}
-          </button>
+          <p style={{ color: theme.textMuted, fontSize: 12 }}>
+            Telegram ID: {u.telegramId} · Заработано всего: ${u.totalEarned.toFixed(4)} · Рефералов: {u.referralsCount}
+          </p>
+          <p style={{ color: theme.textFaint, fontSize: 11 }}>
+            Регистрация: {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+          </p>
         </Card>
       ))}
     </div>
@@ -1693,15 +1697,35 @@ function AdminWheel({ config, onUpdateConfig, segments, onUpdateSegment, onAddSe
   );
 }
 
-function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw, tasks, onAddTask, onDeleteTask, users, onToggleBlock, adNetworks, onUpdateNetwork, cases, onUpdateCasePoolItem, onAddCasePoolItem, onDeleteCasePoolItem, wheelConfig, onUpdateWheelConfig, wheelSegments, onUpdateWheelSegment, onAddWheelSegment, onDeleteWheelSegment }) {
+function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw, tasks, onAddTask, onDeleteTask, adNetworks, onUpdateNetwork, cases, onUpdateCasePoolItem, onAddCasePoolItem, onDeleteCasePoolItem, wheelConfig, onUpdateWheelConfig, wheelSegments, onUpdateWheelSegment, onAddWheelSegment, onDeleteWheelSegment }) {
   const [tab, setTab] = useState("withdrawals");
+  const [realUsers, setRealUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab !== "users") return;
+    const tg = window.Telegram?.WebApp;
+    if (!tg || !tg.initData) return;
+    setUsersLoading(true);
+    fetch("/api/admin-users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.users) setRealUsers(data.users);
+      })
+      .catch((err) => console.error("admin-users request failed", err))
+      .finally(() => setUsersLoading(false));
+  }, [tab]);
 
   const tabs = [
     { id: "withdrawals", label: `Выводы (${withdrawals.length})` },
     { id: "tasks", label: "Задания" },
     { id: "cases", label: "Кейсы" },
     { id: "wheel", label: "Барабан" },
-    { id: "users", label: "Пользователи" },
+    { id: "users", label: `Пользователи (${realUsers.length})` },
     { id: "networks", label: "Сети рекламы" },
   ];
 
@@ -1745,7 +1769,7 @@ function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw
             onDeleteSegment={onDeleteWheelSegment}
           />
         )}
-        {tab === "users" && <AdminUsers users={users} onToggleBlock={onToggleBlock} />}
+        {tab === "users" && <AdminUsers users={realUsers} loading={usersLoading} />}
         {tab === "networks" && <AdminAdNetworks networks={adNetworks} onUpdate={onUpdateNetwork} />}
       </div>
     </div>
@@ -1762,21 +1786,47 @@ export default function App() {
 
   const [adminOpen, setAdminOpen] = useState(false);
   const [withdrawRequests, setWithdrawRequests] = useState(mockPendingWithdrawals);
-  const [usersList, setUsersList] = useState(mockUsersList);
 
   // ---- Bonuses: wheel + cases + promo ----
-  const [wheelSpinsLeft, setWheelSpinsLeft] = useState(0);
+  // Прокрутки барабана больше не хранятся локальным счётчиком — они всегда вычисляются
+  // из того, что реально подтвердил сервер (сколько рекламы просмотрено сегодня, сколько прокруток уже потрачено).
+  const [wheelAdsProgressToday, setWheelAdsProgressToday] = useState(0);
+  const [wheelSpinsUsedToday, setWheelSpinsUsedToday] = useState(0);
   const [wheelConfig, setWheelConfig] = useState(mockWheelConfig);
   const [wheelSegments, setWheelSegments] = useState(mockWheelSegments);
-  const [adsSinceLastSpin, setAdsSinceLastSpin] = useState(0);
-  const [wheelAdsWatchedToday, setWheelAdsWatchedToday] = useState(0);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [wheelSpinning, setWheelSpinning] = useState(false);
   const [cases, setCases] = useState(mockCases);
+  const [checkedInToday, setCheckedInToday] = useState(false);
   const [promoCode, setPromoCode] = useState("");
 
   // ---- Реальная авторизация через Telegram + бэкенд ----
   const [authData, setAuthData] = useState(null); // { telegramId, username, balance, referralCode, ... }
+
+  // Универсальный помощник: отправляет действие на сервер (награда + отметка "выполнено сегодня/когда-либо").
+  // Если приложение открыто не в Telegram (например, для проверки в обычном браузере) —
+  // ничего никуда не отправляем, работаем только локально, как раньше.
+  async function creditEarning(actionKey, amount, dailyLimit, scope = "daily") {
+    const tg = window.Telegram?.WebApp;
+    if (!tg || !tg.initData) {
+      return { ok: true, local: true };
+    }
+    try {
+      const res = await fetch("/api/earn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: tg.initData, actionKey, amount, dailyLimit, scope }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data.error };
+      }
+      return { ok: true, balance: data.balance, totalEarned: data.totalEarned, countToday: data.countToday };
+    } catch (err) {
+      console.error("earn request failed", err);
+      return { ok: false, error: "network" };
+    }
+  }
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -1794,8 +1844,47 @@ export default function App() {
           return;
         }
         setAuthData(data);
-        // подставляем реальный баланс с сервера вместо мокового
         setUser((u) => ({ ...u, balance: data.balance, totalEarned: data.totalEarned }));
+
+        // Восстанавливаем всё, что уже было сделано сегодня (и когда-либо для одноразовых наград),
+        // чтобы после перезахода в приложение прогресс не сбрасывался.
+        const today = new Date().toISOString().slice(0, 10);
+        const todayTotals = {}; // actionKey -> сумма за сегодня
+        const everSeen = new Set(); // actionKey, который встречался хоть раз (для одноразовых)
+        (data.actions || []).forEach((a) => {
+          everSeen.add(a.action_key);
+          if (a.action_date === today) {
+            todayTotals[a.action_key] = (todayTotals[a.action_key] || 0) + Number(a.value);
+          }
+        });
+
+        setAdNetworks((prev) =>
+          prev.map((n) => ({ ...n, viewsToday: todayTotals[`ad_${n.id}`] || 0 }))
+        );
+
+        setCases((prev) =>
+          prev.map((c) => {
+            if (c.type === "daily") {
+              return {
+                ...c,
+                openedToday: Boolean(todayTotals[`case_${c.id}`]),
+                watchedAds: c.requiredAds ? todayTotals[`case_${c.id}_ads`] || 0 : c.watchedAds,
+              };
+            }
+            if (c.type === "once") {
+              return { ...c, opened: everSeen.has(`case_${c.id}`) };
+            }
+            return c;
+          })
+        );
+
+        setTasks((prev) =>
+          prev.map((t) => (everSeen.has(`task_${t.id}`) ? { ...t, status: "done" } : t))
+        );
+
+        setWheelAdsProgressToday(todayTotals["wheel_ads_progress"] || 0);
+        setWheelSpinsUsedToday(todayTotals["wheel_spin"] || 0);
+        setCheckedInToday(Boolean(todayTotals["checkin"]));
       })
       .catch((err) => console.error("Auth request failed:", err));
   }, []);
@@ -1809,50 +1898,81 @@ export default function App() {
   const currentTelegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id ?? null;
   const isAdmin = currentTelegramId === ADMIN_TELEGRAM_ID;
 
+  // Сколько прокруток барабана доступно прямо сейчас — не отдельный счётчик, а вычисляется
+  // из фактически подтверждённого сервером прогресса, чтобы его нельзя было "накопить" перезагрузкой страницы.
+  const wheelSpinsAvailable = Math.max(
+    0,
+    Math.floor(wheelAdsProgressToday / wheelConfig.adsPerSpin) - wheelSpinsUsedToday
+  );
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 1800);
     return () => clearTimeout(t);
   }, [toast]);
 
-  function handleWatchAd(networkId) {
+  async function handleWatchAd(networkId) {
     const net = adNetworks.find((n) => n.id === networkId);
     if (!net || net.viewsToday >= net.dailyLimit) return;
     const reward = net.reward;
+
+    const result = await creditEarning(`ad_${networkId}`, reward, net.dailyLimit, "daily");
+    if (!result.ok) {
+      setToast("Дневной лимит по этой сети исчерпан");
+      return;
+    }
+
     setAdNetworks((prev) =>
-      prev.map((n) => (n.id === networkId ? { ...n, viewsToday: n.viewsToday + 1 } : n))
+      prev.map((n) => (n.id === networkId ? { ...n, viewsToday: result.countToday ?? n.viewsToday + 1 } : n))
     );
     setUser((u) => ({
       ...u,
-      balance: +(u.balance + reward).toFixed(6),
+      balance: result.balance ?? +(u.balance + reward).toFixed(6),
       todayViews: u.todayViews + 1,
       todayEarned: +(u.todayEarned + reward).toFixed(6),
-      totalEarned: +(u.totalEarned + reward).toFixed(6),
+      totalEarned: result.totalEarned ?? +(u.totalEarned + reward).toFixed(6),
       adsWatchedTotal: u.adsWatchedTotal + 1,
     }));
     setToast(`+$${reward.toFixed(4)} USDT`);
-
-    // Начисление прокруток барабана за просмотр рекламы (по настройке админа adsPerSpin)
-    setAdsSinceLastSpin((prevCount) => {
-      const next = prevCount + 1;
-      if (next >= wheelConfig.adsPerSpin) {
-        setWheelSpinsLeft((s) => Math.min(wheelConfig.maxSpinsPerDay, s + 1));
-        return 0;
-      }
-      return next;
-    });
   }
 
-  function handleClaimTask(taskId) {
+  async function handleClaimTask(taskId) {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === "done") return;
+
+    const result = await creditEarning(`task_${taskId}`, task.reward, 1, "once");
+    if (!result.ok) {
+      setToast("Задание уже выполнено");
+      return;
+    }
+
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: "done" } : t)));
     setUser((u) => ({
       ...u,
-      balance: +(u.balance + task.reward).toFixed(6),
-      totalEarned: +(u.totalEarned + task.reward).toFixed(6),
+      balance: result.balance ?? +(u.balance + task.reward).toFixed(6),
+      totalEarned: result.totalEarned ?? +(u.totalEarned + task.reward).toFixed(6),
     }));
     setToast(`+$${task.reward.toFixed(4)} USDT`);
+  }
+
+  async function handleCheckin() {
+    if (checkedInToday) return;
+    const reward = 0.0005 * (user.checkinDay + 1);
+
+    const result = await creditEarning("checkin", reward, 1, "daily");
+    if (!result.ok) {
+      setToast("Сегодня уже забирали награду");
+      return;
+    }
+
+    setCheckedInToday(true);
+    setUser((u) => ({
+      ...u,
+      balance: result.balance ?? +(u.balance + reward).toFixed(6),
+      totalEarned: result.totalEarned ?? +(u.totalEarned + reward).toFixed(6),
+      checkinDay: u.checkinDay >= u.checkinTotal - 1 ? 0 : u.checkinDay + 1,
+    }));
+    setToast(`Чек-ин: +$${reward.toFixed(4)} USDT`);
   }
 
   // ---- Admin actions (MOCK: только локальный state; на бэкенде — защищённые /api/admin/* эндпоинты) ----
@@ -1872,10 +1992,6 @@ export default function App() {
 
   function handleDeleteTask(taskId) {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
-  }
-
-  function handleToggleBlockUser(userId) {
-    setUsersList((prev) => prev.map((u) => (u.id === userId ? { ...u, blocked: !u.blocked } : u)));
   }
 
   function handleUpdateNetwork(networkId, patch) {
@@ -1927,24 +2043,24 @@ export default function App() {
   }
 
   // ---- Bonuses handlers ----
-  function handleWatchAdForWheel() {
+  async function handleWatchAdForWheel() {
     const maxAdsPerDay = wheelConfig.maxSpinsPerDay * wheelConfig.adsPerSpin;
-    if (wheelAdsWatchedToday >= maxAdsPerDay) return;
-    setWheelAdsWatchedToday((n) => n + 1);
-    setAdsSinceLastSpin((prevCount) => {
-      const next = prevCount + 1;
-      if (next >= wheelConfig.adsPerSpin) {
-        setWheelSpinsLeft((s) => Math.min(wheelConfig.maxSpinsPerDay, s + 1));
-        setToast("+1 прокрутка барабана");
-        return 0;
-      }
-      setToast(`Реклама просмотрена (${next}/${wheelConfig.adsPerSpin} до прокрутки)`);
-      return next;
-    });
+    if (wheelAdsProgressToday >= maxAdsPerDay) return;
+
+    const result = await creditEarning("wheel_ads_progress", 0, maxAdsPerDay, "daily");
+    if (!result.ok) {
+      setToast("Лимит рекламы для барабана на сегодня исчерпан");
+      return;
+    }
+
+    const newProgress = result.countToday ?? wheelAdsProgressToday + 1;
+    setWheelAdsProgressToday(newProgress);
+    const remainder = newProgress % wheelConfig.adsPerSpin;
+    setToast(remainder === 0 ? "+1 прокрутка барабана" : `Реклама просмотрена (${remainder}/${wheelConfig.adsPerSpin} до прокрутки)`);
   }
 
   function handleSpinWheel() {
-    if (wheelSpinsLeft <= 0 || wheelSpinning) return;
+    if (wheelSpinsAvailable <= 0 || wheelSpinning) return;
     setWheelSpinning(true);
     const segCount = wheelSegments.length;
     const segAngle = 360 / segCount;
@@ -1952,8 +2068,6 @@ export default function App() {
     const winnerCenter = winnerIndex * segAngle + segAngle / 2;
 
     // Итоговый поворот (по модулю 360) должен ставить центр выигрышного сектора точно под указатель (сверху).
-    // Раньше targetAngle считался без учёта остатка от прошлых прокруток — из-за этого колесо
-    // визуально останавливалось не на том секторе, за который начислялась награда.
     const desiredMod = ((360 - winnerCenter) % 360 + 360) % 360;
     setWheelRotation((prevRotation) => {
       const currentMod = ((prevRotation % 360) + 360) % 360;
@@ -1962,37 +2076,52 @@ export default function App() {
       const fullSpins = 360 * 5;
       return prevRotation + fullSpins + delta;
     });
-    setWheelSpinsLeft((n) => n - 1);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const reward = wheelSegments[winnerIndex].value;
-      setUser((u) => ({
-        ...u,
-        balance: +(u.balance + reward).toFixed(6),
-        totalEarned: +(u.totalEarned + reward).toFixed(6),
-      }));
-      setToast(`Барабан: +$${reward.toFixed(4)} USDT`);
+      const result = await creditEarning("wheel_spin", reward, wheelConfig.maxSpinsPerDay, "daily");
+      if (result.ok) {
+        setUser((u) => ({
+          ...u,
+          balance: result.balance ?? +(u.balance + reward).toFixed(6),
+          totalEarned: result.totalEarned ?? +(u.totalEarned + reward).toFixed(6),
+        }));
+        setWheelSpinsUsedToday(result.countToday ?? wheelSpinsUsedToday + 1);
+        setToast(`Барабан: +$${reward.toFixed(4)} USDT`);
+      } else {
+        setToast("Не удалось начислить прокрутку — попробуй ещё раз");
+      }
       setWheelSpinning(false);
     }, 3200);
   }
 
-  function handleOpenCase(caseId, wonItem) {
+  async function handleOpenCase(caseId, wonItem) {
+    const c = cases.find((x) => x.id === caseId);
+    if (!c) return;
+    const scope = c.type === "once" ? "once" : "daily";
+
+    const result = await creditEarning(`case_${caseId}`, wonItem.amount, 1, scope);
+    if (!result.ok) {
+      setToast("Этот кейс уже был открыт");
+      return;
+    }
+
     setCases((prev) =>
-      prev.map((c) => {
-        if (c.id !== caseId) return c;
-        const updatedPool = c.pool.map((p) =>
+      prev.map((cc) => {
+        if (cc.id !== caseId) return cc;
+        const updatedPool = cc.pool.map((p) =>
           p.id === wonItem.id ? { ...p, quantity: Math.max(0, p.quantity - 1) } : p
         );
-        const base = { ...c, pool: updatedPool };
-        if (c.type === "daily") return { ...base, openedToday: true, watchedAds: 0 };
-        if (c.type === "once") return { ...base, opened: true };
+        const base = { ...cc, pool: updatedPool };
+        if (cc.type === "daily") return { ...base, openedToday: true, watchedAds: 0 };
+        if (cc.type === "once") return { ...base, opened: true };
         return base;
       })
     );
     setUser((u) => ({
       ...u,
-      balance: +(u.balance + wonItem.amount).toFixed(6),
-      totalEarned: +(u.totalEarned + wonItem.amount).toFixed(6),
+      balance: result.balance ?? +(u.balance + wonItem.amount).toFixed(6),
+      totalEarned: result.totalEarned ?? +(u.totalEarned + wonItem.amount).toFixed(6),
     }));
     setToast(`Кейс: +$${wonItem.amount.toFixed(4)} USDT`);
   }
@@ -2004,13 +2133,22 @@ export default function App() {
   }
 
   // Просмотр рекламы для разблокировки кейса (учёт очков-просмотров отдельно от Home)
-  function handleWatchCaseAd(caseId) {
+  async function handleWatchCaseAd(caseId) {
+    const c = cases.find((x) => x.id === caseId);
+    if (!c || c.requiredAds == null) return;
+
+    const result = await creditEarning(`case_${caseId}_ads`, 0, c.requiredAds, "daily");
+    if (!result.ok) {
+      setToast("Лимит просмотров для этого кейса исчерпан");
+      return;
+    }
+
     setCases((prev) =>
-      prev.map((c) => {
-        if (c.id !== caseId || c.requiredAds == null) return c;
-        const watchedAds = Math.min(c.requiredAds, (c.watchedAds || 0) + 1);
-        return { ...c, watchedAds };
-      })
+      prev.map((cc) =>
+        cc.id === caseId
+          ? { ...cc, watchedAds: result.countToday ?? Math.min(cc.requiredAds, (cc.watchedAds || 0) + 1) }
+          : cc
+      )
     );
     setToast("+1 просмотр засчитан");
   }
@@ -2028,13 +2166,13 @@ export default function App() {
       {screen === "tasks" && <TasksScreen tasks={tasks} onClaim={handleClaimTask} user={user} />}
       {screen === "bonuses" && (
         <BonusesScreen
-          wheelSpinsLeft={wheelSpinsLeft}
+          wheelSpinsLeft={wheelSpinsAvailable}
           wheelSpinsMax={wheelConfig.maxSpinsPerDay}
           wheelSegments={wheelSegments}
           wheelRotation={wheelRotation}
           wheelSpinning={wheelSpinning}
           onSpin={handleSpinWheel}
-          wheelAdsWatchedToday={wheelAdsWatchedToday}
+          wheelAdsWatchedToday={wheelAdsProgressToday}
           wheelMaxAdsPerDay={wheelConfig.maxSpinsPerDay * wheelConfig.adsPerSpin}
           onWatchAdForWheel={handleWatchAdForWheel}
           cases={cases}
@@ -2059,8 +2197,6 @@ export default function App() {
           tasks={tasks}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
-          users={usersList}
-          onToggleBlock={handleToggleBlockUser}
           adNetworks={adNetworks}
           onUpdateNetwork={handleUpdateNetwork}
           cases={cases}
