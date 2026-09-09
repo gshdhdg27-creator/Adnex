@@ -29,18 +29,29 @@ const theme = {
 // ---------- Реальные настройки ----------
 const ADMIN_TELEGRAM_ID = 2145640263; // твой Telegram ID — админка видна только тебе
 const BOT_USERNAME = "Ad_nex_bot"; // username бота без @
+const COIN_NAME = "ADNEX"; // название внутриигровой валюты
+
+// Форматирование суммы в монетах — используется вместо долларов везде в приложении
+function formatCoins(amount) {
+  const n = Math.round(amount);
+  return `${n.toLocaleString("ru-RU")} ${COIN_NAME}`;
+}
+// Компактная форма для маленьких мест (бейджи, кнопки) — без названия валюты
+function formatCoinsShort(amount) {
+  return Math.round(amount).toLocaleString("ru-RU");
+}
 
 const mockPendingWithdrawals = []; // заявки на вывод появятся здесь по мере поступления от пользователей
 
 const mockWheelSegments = [
-  { id: "w1", label: "$0.001", value: 0.001 },
-  { id: "w2", label: "$0.0005", value: 0.0005 },
-  { id: "w3", label: "$0.005", value: 0.005 },
-  { id: "w4", label: "$0.0002", value: 0.0002 },
-  { id: "w5", label: "$0.02", value: 0.02 },
-  { id: "w6", label: "$0.0008", value: 0.0008 },
-  { id: "w7", label: "$0.001", value: 0.001 },
-  { id: "w8", label: "$0.05", value: 0.05 },
+  { id: "w1", label: "2", value: 2 },
+  { id: "w2", label: "1", value: 1 },
+  { id: "w3", label: "5", value: 5 },
+  { id: "w4", label: "1", value: 1 },
+  { id: "w5", label: "20", value: 20 },
+  { id: "w6", label: "3", value: 3 },
+  { id: "w7", label: "2", value: 2 },
+  { id: "w8", label: "50", value: 50 },
 ];
 
 const mockWheelConfig = {
@@ -48,78 +59,83 @@ const mockWheelConfig = {
   adsPerSpin: 1, // сколько просмотров рекламы даёт +1 прокрутку
 };
 
+const mockWithdrawLockConfig = {
+  enabled: true, // если выключено — раздел вывода открыт сразу для всех
+  requiredAdViews: 100, // сколько всего просмотров рекламы нужно, чтобы раздел открылся
+};
+
 const mockCases = [
   {
     id: "daily", title: "Ежедневный кейс", desc: "Бесплатно, раз в день", type: "daily",
     requiredAds: 0, openedToday: false,
     pool: [
-      { id: "p1", amount: 0.0003, percent: 45, quantity: 999 },
-      { id: "p2", amount: 0.0008, percent: 30, quantity: 500 },
-      { id: "p3", amount: 0.002, percent: 15, quantity: 200 },
-      { id: "p4", amount: 0.005, percent: 8, quantity: 50 },
-      { id: "p5", amount: 0.02, percent: 2, quantity: 5 },
+      { id: "p1", amount: 1, percent: 45, quantity: 999 },
+      { id: "p2", amount: 2, percent: 30, quantity: 500 },
+      { id: "p3", amount: 5, percent: 15, quantity: 200 },
+      { id: "p4", amount: 15, percent: 8, quantity: 50 },
+      { id: "p5", amount: 50, percent: 2, quantity: 5 },
     ],
   },
   {
     id: "ad1", title: "Кейс «1 реклама»", desc: "Посмотри 1 рекламу", type: "daily",
     requiredAds: 1, watchedAds: 0, openedToday: false,
     pool: [
-      { id: "p1", amount: 0.0006, percent: 40, quantity: 999 },
-      { id: "p2", amount: 0.0015, percent: 30, quantity: 400 },
-      { id: "p3", amount: 0.004, percent: 18, quantity: 150 },
-      { id: "p4", amount: 0.01, percent: 9, quantity: 40 },
-      { id: "p5", amount: 0.04, percent: 3, quantity: 5 },
+      { id: "p1", amount: 2, percent: 40, quantity: 999 },
+      { id: "p2", amount: 4, percent: 30, quantity: 400 },
+      { id: "p3", amount: 10, percent: 18, quantity: 150 },
+      { id: "p4", amount: 25, percent: 9, quantity: 40 },
+      { id: "p5", amount: 80, percent: 3, quantity: 5 },
     ],
   },
   {
     id: "ad3", title: "Кейс «3 рекламы»", desc: "Посмотри 3 рекламы", type: "daily",
     requiredAds: 3, watchedAds: 0, openedToday: false,
     pool: [
-      { id: "p1", amount: 0.002, percent: 38, quantity: 999 },
-      { id: "p2", amount: 0.005, percent: 28, quantity: 300 },
-      { id: "p3", amount: 0.012, percent: 20, quantity: 100 },
-      { id: "p4", amount: 0.03, percent: 10, quantity: 30 },
-      { id: "p5", amount: 0.1, percent: 4, quantity: 5 },
+      { id: "p1", amount: 5, percent: 38, quantity: 999 },
+      { id: "p2", amount: 12, percent: 28, quantity: 300 },
+      { id: "p3", amount: 30, percent: 20, quantity: 100 },
+      { id: "p4", amount: 70, percent: 10, quantity: 30 },
+      { id: "p5", amount: 200, percent: 4, quantity: 5 },
     ],
   },
   {
     id: "ad5", title: "Кейс «5 реклам»", desc: "Посмотри 5 реклам", type: "daily",
     requiredAds: 5, watchedAds: 0, openedToday: false,
     pool: [
-      { id: "p1", amount: 0.004, percent: 35, quantity: 999 },
-      { id: "p2", amount: 0.01, percent: 27, quantity: 200 },
-      { id: "p3", amount: 0.025, percent: 20, quantity: 80 },
-      { id: "p4", amount: 0.06, percent: 13, quantity: 25 },
-      { id: "p5", amount: 0.2, percent: 5, quantity: 4 },
+      { id: "p1", amount: 10, percent: 35, quantity: 999 },
+      { id: "p2", amount: 25, percent: 27, quantity: 200 },
+      { id: "p3", amount: 60, percent: 20, quantity: 80 },
+      { id: "p4", amount: 150, percent: 13, quantity: 25 },
+      { id: "p5", amount: 400, percent: 5, quantity: 4 },
     ],
   },
   {
     id: "ad10", title: "Кейс «10 реклам»", desc: "Посмотри 10 реклам", type: "daily",
     requiredAds: 10, watchedAds: 0, openedToday: false,
     pool: [
-      { id: "p1", amount: 0.01, percent: 32, quantity: 999 },
-      { id: "p2", amount: 0.025, percent: 26, quantity: 150 },
-      { id: "p3", amount: 0.06, percent: 20, quantity: 60 },
-      { id: "p4", amount: 0.15, percent: 15, quantity: 20 },
-      { id: "p5", amount: 0.5, percent: 7, quantity: 4 },
+      { id: "p1", amount: 25, percent: 32, quantity: 999 },
+      { id: "p2", amount: 60, percent: 26, quantity: 150 },
+      { id: "p3", amount: 150, percent: 20, quantity: 60 },
+      { id: "p4", amount: 350, percent: 15, quantity: 20 },
+      { id: "p5", amount: 1000, percent: 7, quantity: 4 },
     ],
   },
   {
     id: "friends5", title: "Кейс «Пригласи 5 друзей»", desc: "Разовая награда", type: "once",
     requiredRefs: 5, currentRefs: 0, opened: false,
     pool: [
-      { id: "p1", amount: 0.03, percent: 35, quantity: 999 },
-      { id: "p2", amount: 0.08, percent: 30, quantity: 200 },
-      { id: "p3", amount: 0.15, percent: 20, quantity: 60 },
-      { id: "p4", amount: 0.3, percent: 12, quantity: 20 },
-      { id: "p5", amount: 1, percent: 3, quantity: 3 },
+      { id: "p1", amount: 60, percent: 35, quantity: 999 },
+      { id: "p2", amount: 150, percent: 30, quantity: 200 },
+      { id: "p3", amount: 300, percent: 20, quantity: 60 },
+      { id: "p4", amount: 600, percent: 12, quantity: 20 },
+      { id: "p5", amount: 2000, percent: 3, quantity: 3 },
     ],
   },
 ];
 
 const mockUser = {
   balance: 0,
-  minWithdraw: 2,
+  minWithdraw: 500,
   todayViews: 0,
   todayEarned: 0,
   checkinDay: 0,
@@ -133,25 +149,27 @@ const mockReferrals = {
   earned: 0,
   link: "", // подставится реальная ссылка после авторизации через Telegram
   percent: 20,
-  firstBonus: 0.01,
+  firstBonus: 5,
 };
 
 const mockWithdrawHistory = []; // история выводов пуста, пока пользователь не сделает первый вывод
 
+// Все сети дают одинаково — 1 ADNEX за просмотр (по просьбе: единая плоская экономика)
 const mockAdNetworks = [
-  { id: "adsgram", name: "Adsgram", reward: 0.0002, viewsToday: 0, dailyLimit: 50, enabled: true },
-  { id: "adexium", name: "Adexium", reward: 0.00015, viewsToday: 0, dailyLimit: 50, enabled: true },
-  { id: "monetag", name: "Monetag", reward: 0.00025, viewsToday: 0, dailyLimit: 50, enabled: true },
-  { id: "adshub", name: "Adshub", reward: 0.0001, viewsToday: 0, dailyLimit: 50, enabled: true },
+  { id: "adsgram", name: "Adsgram", reward: 1, viewsToday: 0, dailyLimit: 50, enabled: true },
+  { id: "adexium", name: "Adexium", reward: 1, viewsToday: 0, dailyLimit: 50, enabled: true },
+  { id: "monetag", name: "Monetag", reward: 1, viewsToday: 0, dailyLimit: 50, enabled: true },
+  { id: "adshub", name: "Adshub", reward: 1, viewsToday: 0, dailyLimit: 50, enabled: true },
 ];
 
 const mockTasks = [
-  { id: 1, icon: "🎰", title: "Подпишись на PM Casino", desc: "Спонсор", reward: 0.001, status: "open" },
-  { id: 2, icon: "📢", title: "Подпишись на канал CryptoNews", desc: "Спонсор", reward: 0.001, status: "open" },
-  { id: 3, icon: "🎮", title: "Установи приложение GameZone", desc: "Спонсор", reward: 0.003, status: "open" },
-  { id: 4, icon: "💬", title: "Вступи в чат Web3 Uzbekistan", desc: "Спонсор", reward: 0.0008, status: "done" },
-  { id: 5, icon: "🎁", title: "Подпишись на бот BonusHunter", desc: "Спонсор", reward: 0.0015, status: "open" },
+  { id: 1, icon: "🎰", title: "Подпишись на PM Casino", desc: "Спонсор", reward: 5, status: "open" },
+  { id: 2, icon: "📢", title: "Подпишись на канал CryptoNews", desc: "Спонсор", reward: 5, status: "open" },
+  { id: 3, icon: "🎮", title: "Установи приложение GameZone", desc: "Спонсор", reward: 15, status: "open" },
+  { id: 4, icon: "💬", title: "Вступи в чат Web3 Uzbekistan", desc: "Спонсор", reward: 4, status: "done" },
+  { id: 5, icon: "🎁", title: "Подпишись на бот BonusHunter", desc: "Спонсор", reward: 8, status: "open" },
 ];
+
 
 // ---------- UI primitives ----------
 function Card({ children, style, className = "" }) {
@@ -215,13 +233,16 @@ function TopBar({ title = "ADNEX", isAdmin, onOpenAdmin }) {
   );
 }
 
-function BottomNav({ active, onChange }) {
+function BottomNav({ active, onChange, withdrawUnlocked }) {
   const items = [
     { id: "home", label: "Главная", icon: Home },
     { id: "tasks", label: "Задания", icon: ListChecks },
     { id: "bonuses", label: "Бонусы", icon: Gift },
     { id: "referrals", label: "Рефералы", icon: Users },
-    { id: "withdraw", label: "Вывод", icon: CreditCard },
+    // Пока раздел не разблокирован — не выдаём его назначение ни иконкой, ни подписью
+    withdrawUnlocked
+      ? { id: "withdraw", label: "Вывод", icon: CreditCard }
+      : { id: "withdraw", label: "???", icon: Lock },
   ];
   return (
     <div
@@ -252,14 +273,14 @@ function HomeScreen({ user, onWatchAd, adNetworks }) {
         </p>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
           <span style={{ color: theme.white, fontSize: 42, fontWeight: 700, lineHeight: 1 }}>
-            ${user.balance.toFixed(4)}
+            {Math.round(user.balance)}
           </span>
-          <span style={{ color: theme.textMuted, fontSize: 18 }}>USDT</span>
+          <span style={{ color: theme.textMuted, fontSize: 18 }}>ADNEX</span>
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: theme.textMuted, marginBottom: 6 }}>
           <span>До вывода</span>
-          <span>${user.balance.toFixed(4)} / ${user.minWithdraw}</span>
+          <span>{Math.round(user.balance)} / {user.minWithdraw} ADNEX</span>
         </div>
         <ProgressBar value={user.balance} max={user.minWithdraw} />
 
@@ -269,7 +290,7 @@ function HomeScreen({ user, onWatchAd, adNetworks }) {
             <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>Просмотров</p>
           </div>
           <div style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: "12px 0", textAlign: "center" }}>
-            <p style={{ color: theme.white, fontSize: 20, fontWeight: 700 }}>${user.todayEarned.toFixed(4)}</p>
+            <p style={{ color: theme.white, fontSize: 20, fontWeight: 700 }}>{Math.round(user.todayEarned)}</p>
             <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>Сегодня</p>
           </div>
         </div>
@@ -296,7 +317,7 @@ function HomeScreen({ user, onWatchAd, adNetworks }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ color: theme.white, fontSize: 15, fontWeight: 600 }}>{net.name}</p>
                   <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                    +${net.reward.toFixed(4)} за показ · {net.viewsToday}/{net.dailyLimit} сегодня
+                    +{net.reward} ADNEX за показ · {net.viewsToday}/{net.dailyLimit} сегодня
                   </p>
                 </div>
                 <button
@@ -326,9 +347,9 @@ function HomeScreen({ user, onWatchAd, adNetworks }) {
         </p>
         <Card>
           {[
-            ["Заработано всего", `$${user.totalEarned.toFixed(4)}`, "USDT"],
+            ["Заработано всего", `${Math.round(user.totalEarned)} ADNEX`, ""],
             ["Просмотрено реклам", `${user.adsWatchedTotal}`, `сегодня ${user.todayViews}`],
-            ["Сегодня заработано", `$${user.todayEarned.toFixed(4)}`, "USDT"],
+            ["Сегодня заработано", `${Math.round(user.todayEarned)} ADNEX`, ""],
           ].map(([label, val, sub], i) => (
             <div
               key={label}
@@ -358,7 +379,7 @@ function TasksScreen({ tasks, onClaim, user, checkedInToday, onCheckin }) {
       <div style={{ textAlign: "center", paddingTop: 4 }}>
         <h1 style={{ color: theme.white, fontSize: 26, fontWeight: 700 }}>Задания</h1>
         <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>
-          Выполняй задания от спонсоров и получай USDT
+          Выполняй задания от спонсоров и получай монеты ADNEX
         </p>
       </div>
 
@@ -405,7 +426,7 @@ function TasksScreen({ tasks, onClaim, user, checkedInToday, onCheckin }) {
                   <span style={{ color: theme.textFaint, fontSize: 12 }}>{t.desc}</span>
                   <span style={{ color: theme.textFaint, fontSize: 12 }}>·</span>
                   <span style={{ color: theme.accentLight, fontSize: 12, fontWeight: 600 }}>
-                    +${t.reward.toFixed(4)} USDT
+                    +{t.reward} ADNEX
                   </span>
                 </div>
               </div>
@@ -578,7 +599,7 @@ function CaseCard({ c, onOpen }) {
           <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>{c.title}</p>
           <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{c.desc}</p>
           <p style={{ color: theme.accentLight, fontSize: 12, marginTop: 2 }}>
-            ${minAmt.toFixed(4)}–${maxAmt.toFixed(4)} USDT
+            {minAmt}–{maxAmt} ADNEX
           </p>
         </div>
       </div>
@@ -669,7 +690,7 @@ function CaseReel({ pool, winnerId, spinning, onFinished }) {
             >
               <Gift size={26} style={{ color: theme.white }} />
             </div>
-            <span style={{ color: theme.white, fontSize: 11, fontWeight: 700 }}>${p?.amount.toFixed(4)}</span>
+            <span style={{ color: theme.white, fontSize: 11, fontWeight: 700 }}>{p?.amount}</span>
           </div>
         ))}
       </div>
@@ -708,7 +729,7 @@ function CaseDetailScreen({ caseData, onBack, spinning, winnerItem, onStartOpen,
               <Gift size={44} style={{ color: theme.white }} />
             </div>
             <p style={{ color: theme.white, fontSize: 26, fontWeight: 800, marginTop: 14 }}>
-              +${result.amount.toFixed(4)} USDT
+              +{result.amount} ADNEX
             </p>
           </div>
         ) : (
@@ -795,7 +816,7 @@ function CaseDetailScreen({ caseData, onBack, spinning, winnerItem, onStartOpen,
                   <Gift size={16} style={{ color: theme.white }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>${p.amount.toFixed(4)} USDT</p>
+                  <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>{p.amount} ADNEX</p>
                   <p style={{ color: theme.textFaint, fontSize: 11, marginTop: 1 }}>Осталось: {p.quantity}</p>
                 </div>
                 <span style={{ color: theme.cyan, fontSize: 14, fontWeight: 700 }}>{p.percent}%</span>
@@ -956,7 +977,7 @@ function BonusesScreen({ wheelSpinsLeft, wheelSpinsMax, wheelSegments, wheelRota
         <Card style={{ padding: 16, display: "flex", alignItems: "center", gap: 12, background: `linear-gradient(90deg, ${theme.card}, ${theme.panelAlt})` }}>
           <span style={{ fontSize: 24 }}>🎉</span>
           <div style={{ flex: 1 }}>
-            <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>Розыгрыш $10 USDT</p>
+            <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>Розыгрыш 1000 ADNEX</p>
             <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>Итоги — каждое воскресенье</p>
           </div>
           <span style={{ background: theme.gradientSoft, color: theme.cyan, fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 9999 }}>
@@ -1053,7 +1074,7 @@ function ReferralsScreen({ data }) {
           <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>Рефералов</p>
         </Card>
         <Card style={{ padding: 20, textAlign: "center" }}>
-          <p style={{ color: theme.white, fontSize: 30, fontWeight: 700 }}>${data.earned.toFixed(4)}</p>
+          <p style={{ color: theme.white, fontSize: 30, fontWeight: 700 }}>{Math.round(data.earned)}</p>
           <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>Заработано</p>
         </Card>
       </div>
@@ -1123,6 +1144,43 @@ function RadialProgress({ value, max, size = 168, stroke = 12 }) {
   );
 }
 
+function WithdrawLockScreen({ progress, required, onGoWatchAds }) {
+  const pct = Math.min(100, Math.round((progress / required) * 100));
+  return (
+    <div className="px-4 pb-28" style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 60, gap: 16 }}>
+      <div
+        style={{
+          width: 96, height: 96, borderRadius: 28, background: theme.gradientV,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <Lock size={40} style={{ color: theme.white }} />
+      </div>
+      <p style={{ color: theme.white, fontSize: 20, fontWeight: 700, textAlign: "center" }}>
+        Раздел заблокирован
+      </p>
+      <p style={{ color: theme.textMuted, fontSize: 14, textAlign: "center", maxWidth: 280 }}>
+        Смотри рекламу по всему приложению, чтобы открыть этот раздел
+      </p>
+
+      <div style={{ width: "100%", maxWidth: 320, marginTop: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: theme.textMuted, marginBottom: 6 }}>
+          <span>Прогресс</span>
+          <span>{progress}/{required}</span>
+        </div>
+        <ProgressBar value={progress} max={required} />
+      </div>
+
+      <button
+        onClick={onGoWatchAds}
+        style={{ marginTop: 16, padding: "14px 32px", borderRadius: 9999, fontWeight: 700, fontSize: 15, background: theme.gradient, color: theme.white }}
+      >
+        Смотреть рекламу
+      </button>
+    </div>
+  );
+}
+
 function WithdrawScreen({ user, history }) {
   const [tab, setTab] = useState("crypto");
   const [amount, setAmount] = useState("");
@@ -1189,9 +1247,9 @@ function WithdrawScreen({ user, history }) {
             }}
           >
             <span style={{ color: theme.white, fontSize: 30, fontWeight: 800, lineHeight: 1 }}>
-              ${user.balance.toFixed(4)}
+              {Math.round(user.balance)}
             </span>
-            <span style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>USDT доступно</span>
+            <span style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>ADNEX доступно</span>
           </div>
         </div>
 
@@ -1200,7 +1258,7 @@ function WithdrawScreen({ user, history }) {
           <span style={{ color: theme.textMuted, fontSize: 13 }}>
             {isStars
               ? `${currentStars} / ${minStars} ★ до минимума`
-              : `$${user.balance.toFixed(4)} / $${user.minWithdraw} до минимума`}
+              : `${Math.round(user.balance)} / ${user.minWithdraw} ADNEX до минимума`}
           </span>
           <span style={{ color: theme.cyan, fontSize: 13, fontWeight: 700 }}>{pctLabel}%</span>
         </div>
@@ -1295,16 +1353,16 @@ function WithdrawScreen({ user, history }) {
               </div>
               <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ flex: 1 }}>
-                  <p style={{ color: theme.textFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}>Сумма (USDT)</p>
+                  <p style={{ color: theme.textFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}>Сумма (ADNEX)</p>
                   <input
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder={`от $${user.minWithdraw}`}
+                    placeholder={`от ${user.minWithdraw} ADNEX`}
                     style={{ width: "100%", background: "transparent", color: theme.white, fontSize: 22, fontWeight: 700, outline: "none", border: "none", marginTop: 4 }}
                   />
                 </div>
                 <button
-                  onClick={() => setAmount(String(user.balance.toFixed(4)))}
+                  onClick={() => setAmount(String(Math.round(user.balance)))}
                   style={{ background: theme.gradientSoft, color: theme.cyan, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9999 }}
                 >
                   Макс
@@ -1343,7 +1401,7 @@ function WithdrawScreen({ user, history }) {
               </div>
               <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", paddingBottom: 2 }}>
                 <div>
-                  <p style={{ color: theme.white, fontWeight: 600, fontSize: 14 }}>${h.amount.toFixed(2)} USDT</p>
+                  <p style={{ color: theme.white, fontWeight: 600, fontSize: 14 }}>{h.amount} ADNEX</p>
                   <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
                     {h.network} · {h.addr} · {h.date}
                   </p>
@@ -1447,7 +1505,7 @@ function AdminTasks({ tasks, onAdd, onDelete }) {
           <input
             value={reward}
             onChange={(e) => setReward(e.target.value)}
-            placeholder="Награда, $"
+            placeholder="Награда, ADNEX"
             style={{ flex: 1, background: "rgba(255,255,255,0.05)", borderRadius: 10, border: "none", color: theme.white, fontSize: 14, padding: "8px 12px" }}
           />
           <button
@@ -1465,7 +1523,7 @@ function AdminTasks({ tasks, onAdd, onDelete }) {
             <span style={{ fontSize: 18 }}>{t.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ color: theme.white, fontSize: 13, fontWeight: 500 }}>{t.title}</p>
-              <p style={{ color: theme.accentLight, fontSize: 12 }}>+${t.reward.toFixed(4)}</p>
+              <p style={{ color: theme.accentLight, fontSize: 12 }}>+{t.reward} ADNEX</p>
             </div>
             <button onClick={() => onDelete(t.id)} style={{ background: "none" }}>
               <Trash2 size={16} style={{ color: "rgba(255,90,90,0.8)" }} />
@@ -1509,7 +1567,7 @@ function AdminCases({ cases, onUpdatePoolItem, onAddPoolItem, onDeletePoolItem }
                       <input
                         value={p.amount}
                         type="number"
-                        step="0.0001"
+                        step="1"
                         onChange={(e) => onUpdatePoolItem(c.id, p.id, { amount: parseFloat(e.target.value) || 0 })}
                         style={{ width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: 6, border: "none", color: theme.white, fontSize: 12, padding: "5px 8px" }}
                       />
@@ -1567,10 +1625,10 @@ function AdminUsers({ users, loading }) {
             <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>
               {u.username ? `@${u.username}` : `ID ${u.telegramId}`}
             </p>
-            <p style={{ color: theme.accentLight, fontSize: 14, fontWeight: 600 }}>${u.balance.toFixed(4)}</p>
+            <p style={{ color: theme.accentLight, fontSize: 14, fontWeight: 600 }}>{Math.round(u.balance)} ADNEX</p>
           </div>
           <p style={{ color: theme.textMuted, fontSize: 12 }}>
-            Telegram ID: {u.telegramId} · Заработано всего: ${u.totalEarned.toFixed(4)} · Рефералов: {u.referralsCount}
+            Telegram ID: {u.telegramId} · Заработано всего: {Math.round(u.totalEarned)} ADNEX · Рефералов: {u.referralsCount}
           </p>
           <p style={{ color: theme.textFaint, fontSize: 11 }}>
             Регистрация: {new Date(u.createdAt).toLocaleDateString("ru-RU")}
@@ -1606,7 +1664,7 @@ function AdminAdNetworks({ networks, onUpdate }) {
                 value={n.reward}
                 onChange={(e) => onUpdate(n.id, { reward: parseFloat(e.target.value) || 0 })}
                 type="number"
-                step="0.0001"
+                step="1"
                 style={{ width: "100%", background: "rgba(255,255,255,0.05)", borderRadius: 8, border: "none", color: theme.white, fontSize: 13, padding: "7px 10px" }}
               />
             </div>
@@ -1668,14 +1726,14 @@ function AdminWheel({ config, onUpdateConfig, segments, onUpdateSegment, onAddSe
           {segments.map((s) => (
             <div key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 8 }}>
               <div style={{ flex: 1 }}>
-                <p style={{ color: theme.textFaint, fontSize: 10, marginBottom: 2 }}>Сумма, $</p>
+                <p style={{ color: theme.textFaint, fontSize: 10, marginBottom: 2 }}>Монет, ADNEX</p>
                 <input
                   value={s.value}
                   type="number"
-                  step="0.0001"
+                  step="1"
                   onChange={(e) => {
                     const val = parseFloat(e.target.value) || 0;
-                    onUpdateSegment(s.id, { value: val, label: `$${val}` });
+                    onUpdateSegment(s.id, { value: val, label: `${val}` });
                   }}
                   style={{ width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: 6, border: "none", color: theme.white, fontSize: 12, padding: "5px 8px" }}
                 />
@@ -1697,7 +1755,89 @@ function AdminWheel({ config, onUpdateConfig, segments, onUpdateSegment, onAddSe
   );
 }
 
-function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw, tasks, onAddTask, onDeleteTask, adNetworks, onUpdateNetwork, cases, onUpdateCasePoolItem, onAddCasePoolItem, onDeleteCasePoolItem, wheelConfig, onUpdateWheelConfig, wheelSegments, onUpdateWheelSegment, onAddWheelSegment, onDeleteWheelSegment }) {
+function AdminWithdrawLock({ config, onSave, saving }) {
+  const [enabled, setEnabled] = useState(config.enabled);
+  const [requiredAdViews, setRequiredAdViews] = useState(config.requiredAdViews);
+
+  useEffect(() => {
+    setEnabled(config.enabled);
+    setRequiredAdViews(config.requiredAdViews);
+  }, [config]);
+
+  const dirty = enabled !== config.enabled || requiredAdViews !== config.requiredAdViews;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Card style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        <p style={{ color: theme.textMuted, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Замок раздела «Вывод»
+        </p>
+
+        <button
+          onClick={() => setEnabled((v) => !v)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 14,
+          }}
+        >
+          <div style={{ textAlign: "left" }}>
+            <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>Условие включено</p>
+            <p style={{ color: theme.textFaint, fontSize: 12, marginTop: 2 }}>
+              Если выключить — раздел «Вывод» открыт сразу для всех
+            </p>
+          </div>
+          <div
+            style={{
+              width: 44, height: 26, borderRadius: 9999, flexShrink: 0,
+              background: enabled ? theme.gradient : "rgba(255,255,255,0.15)",
+              position: "relative", transition: "background 0.2s",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute", top: 3, left: enabled ? 21 : 3,
+                width: 20, height: 20, borderRadius: 9999, background: theme.white,
+                transition: "left 0.2s",
+              }}
+            />
+          </div>
+        </button>
+
+        <div>
+          <p style={{ color: theme.textFaint, fontSize: 11, marginBottom: 6 }}>
+            Сколько всего просмотров рекламы нужно (по всему приложению, разово)
+          </p>
+          <input
+            value={requiredAdViews}
+            type="number"
+            min={1}
+            disabled={!enabled}
+            onChange={(e) => setRequiredAdViews(Math.max(1, parseInt(e.target.value) || 1))}
+            style={{
+              width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: 10, border: "none",
+              color: theme.white, fontSize: 16, fontWeight: 600, padding: "10px 14px",
+              opacity: enabled ? 1 : 0.4,
+            }}
+          />
+        </div>
+
+        <button
+          onClick={() => onSave({ enabled, requiredAdViews })}
+          disabled={!dirty || saving}
+          style={{
+            padding: "12px 0", borderRadius: 12, fontWeight: 700, fontSize: 14,
+            background: dirty && !saving ? theme.gradient : "rgba(255,255,255,0.06)",
+            color: dirty && !saving ? theme.white : theme.textFaint,
+          }}
+        >
+          {saving ? "Сохраняю..." : "Сохранить"}
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw, tasks, onAddTask, onDeleteTask, adNetworks, onUpdateNetwork, cases, onUpdateCasePoolItem, onAddCasePoolItem, onDeleteCasePoolItem, wheelConfig, onUpdateWheelConfig, wheelSegments, onUpdateWheelSegment, onAddWheelSegment, onDeleteWheelSegment, withdrawLockConfig, onSaveWithdrawLock, savingWithdrawLock }) {
   const [tab, setTab] = useState("withdrawals");
   const [realUsers, setRealUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -1727,6 +1867,7 @@ function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw
     { id: "wheel", label: "Барабан" },
     { id: "users", label: `Пользователи (${realUsers.length})` },
     { id: "networks", label: "Сети рекламы" },
+    { id: "withdrawLock", label: "Замок вывода" },
   ];
 
   return (
@@ -1771,6 +1912,9 @@ function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw
         )}
         {tab === "users" && <AdminUsers users={realUsers} loading={usersLoading} />}
         {tab === "networks" && <AdminAdNetworks networks={adNetworks} onUpdate={onUpdateNetwork} />}
+        {tab === "withdrawLock" && (
+          <AdminWithdrawLock config={withdrawLockConfig} onSave={onSaveWithdrawLock} saving={savingWithdrawLock} />
+        )}
       </div>
     </div>
   );
@@ -1792,6 +1936,9 @@ export default function App() {
   // из того, что реально подтвердил сервер (сколько рекламы просмотрено сегодня, сколько прокруток уже потрачено).
   const [wheelAdsProgressToday, setWheelAdsProgressToday] = useState(0);
   const [wheelSpinsUsedToday, setWheelSpinsUsedToday] = useState(0);
+  const [totalAdsWatchedLifetime, setTotalAdsWatchedLifetime] = useState(0);
+  const [withdrawLockConfig, setWithdrawLockConfig] = useState(mockWithdrawLockConfig);
+  const [savingWithdrawLock, setSavingWithdrawLock] = useState(false);
   const [wheelConfig, setWheelConfig] = useState(mockWheelConfig);
   const [wheelSegments, setWheelSegments] = useState(mockWheelSegments);
   const [wheelRotation, setWheelRotation] = useState(0);
@@ -1827,6 +1974,19 @@ export default function App() {
       return { ok: false, error: "network" };
     }
   }
+
+  useEffect(() => {
+    // Настройки замка вывода — публичные, грузим независимо от того, в Telegram открыто или нет,
+    // чтобы даже при тестировании в браузере видно было актуальное значение из админки.
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.settings?.withdraw_lock) {
+          setWithdrawLockConfig(data.settings.withdraw_lock);
+        }
+      })
+      .catch((err) => console.error("Settings request failed:", err));
+  }, []);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -1885,6 +2045,17 @@ export default function App() {
         setWheelAdsProgressToday(todayTotals["wheel_ads_progress"] || 0);
         setWheelSpinsUsedToday(todayTotals["wheel_spin"] || 0);
         setCheckedInToday(Boolean(todayTotals["checkin"]));
+
+        // Сколько всего рекламы просмотрено за всё время (не только сегодня) — нужно
+        // для разблокировки раздела вывода. Считаем по всем ключам, которые означают
+        // реальный просмотр рекламы: сети на Главной (ad_*) и прогресс рекламных кейсов (*_ads).
+        let totalAdsLifetime = 0;
+        (data.actions || []).forEach((a) => {
+          if (a.action_key.startsWith("ad_") || a.action_key.endsWith("_ads")) {
+            totalAdsLifetime += Number(a.value);
+          }
+        });
+        setTotalAdsWatchedLifetime(totalAdsLifetime);
       })
       .catch((err) => console.error("Auth request failed:", err));
   }, []);
@@ -1897,6 +2068,10 @@ export default function App() {
   // не дожидаясь ответа бэкенда, чтобы админка появлялась сразу.
   const currentTelegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id ?? null;
   const isAdmin = currentTelegramId === ADMIN_TELEGRAM_ID;
+
+  // Раздел "Вывод" открыт сразу, если условие выключено в админке, либо когда
+  // пользователь посмотрел достаточно рекламы за всё время существования аккаунта.
+  const withdrawUnlocked = !withdrawLockConfig.enabled || totalAdsWatchedLifetime >= withdrawLockConfig.requiredAdViews;
 
   // Сколько прокруток барабана доступно прямо сейчас — не отдельный счётчик, а вычисляется
   // из фактически подтверждённого сервером прогресса, чтобы его нельзя было "накопить" перезагрузкой страницы.
@@ -1933,7 +2108,8 @@ export default function App() {
       totalEarned: result.totalEarned ?? +(u.totalEarned + reward).toFixed(6),
       adsWatchedTotal: u.adsWatchedTotal + 1,
     }));
-    setToast(`+$${reward.toFixed(4)} USDT`);
+    setTotalAdsWatchedLifetime((n) => n + 1);
+    setToast(`+${reward} ADNEX`);
   }
 
   async function handleClaimTask(taskId) {
@@ -1952,12 +2128,12 @@ export default function App() {
       balance: result.balance ?? +(u.balance + task.reward).toFixed(6),
       totalEarned: result.totalEarned ?? +(u.totalEarned + task.reward).toFixed(6),
     }));
-    setToast(`+$${task.reward.toFixed(4)} USDT`);
+    setToast(`+${task.reward} ADNEX`);
   }
 
   async function handleCheckin() {
     if (checkedInToday) return;
-    const reward = 0.0005 * (user.checkinDay + 1);
+    const reward = 1 + user.checkinDay; // растёт на 1 ADNEX за каждый день подряд
 
     const result = await creditEarning("checkin", reward, 1, "daily");
     if (!result.ok) {
@@ -1972,7 +2148,7 @@ export default function App() {
       totalEarned: result.totalEarned ?? +(u.totalEarned + reward).toFixed(6),
       checkinDay: u.checkinDay >= u.checkinTotal - 1 ? 0 : u.checkinDay + 1,
     }));
-    setToast(`Чек-ин: +$${reward.toFixed(4)} USDT`);
+    setToast(`Чек-ин: +${reward} ADNEX`);
   }
 
   // ---- Admin actions (MOCK: только локальный state; на бэкенде — защищённые /api/admin/* эндпоинты) ----
@@ -2014,7 +2190,7 @@ export default function App() {
       prev.map((c) =>
         c.id !== caseId
           ? c
-          : { ...c, pool: [...c.pool, { id: `p${Date.now()}`, amount: 0.001, percent: 0, quantity: 10 }] }
+          : { ...c, pool: [...c.pool, { id: `p${Date.now()}`, amount: 1, percent: 0, quantity: 10 }] }
       )
     );
   }
@@ -2042,6 +2218,31 @@ export default function App() {
     setWheelSegments((prev) => (prev.length > 2 ? prev.filter((s) => s.id !== segId) : prev));
   }
 
+  // Сохраняет настройку замка "Вывод" на сервере — видно сразу всем пользователям, не только тебе.
+  async function handleSaveWithdrawLock(newConfig) {
+    setSavingWithdrawLock(true);
+    try {
+      const tg = window.Telegram?.WebApp;
+      const res = await fetch("/api/admin-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: tg?.initData, key: "withdraw_lock", value: newConfig }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setToast(data.error || "Не удалось сохранить настройку");
+        return;
+      }
+      setWithdrawLockConfig(newConfig);
+      setToast("Настройка сохранена");
+    } catch (err) {
+      console.error("admin-settings request failed", err);
+      setToast("Ошибка сети — попробуй ещё раз");
+    } finally {
+      setSavingWithdrawLock(false);
+    }
+  }
+
   // ---- Bonuses handlers ----
   async function handleWatchAdForWheel() {
     const maxAdsPerDay = wheelConfig.maxSpinsPerDay * wheelConfig.adsPerSpin;
@@ -2055,6 +2256,7 @@ export default function App() {
 
     const newProgress = result.countToday ?? wheelAdsProgressToday + 1;
     setWheelAdsProgressToday(newProgress);
+    setTotalAdsWatchedLifetime((n) => n + 1);
     const remainder = newProgress % wheelConfig.adsPerSpin;
     setToast(remainder === 0 ? "+1 прокрутка барабана" : `Реклама просмотрена (${remainder}/${wheelConfig.adsPerSpin} до прокрутки)`);
   }
@@ -2087,7 +2289,7 @@ export default function App() {
           totalEarned: result.totalEarned ?? +(u.totalEarned + reward).toFixed(6),
         }));
         setWheelSpinsUsedToday(result.countToday ?? wheelSpinsUsedToday + 1);
-        setToast(`Барабан: +$${reward.toFixed(4)} USDT`);
+        setToast(`Барабан: +${reward} ADNEX`);
       } else {
         setToast("Не удалось начислить прокрутку — попробуй ещё раз");
       }
@@ -2123,7 +2325,7 @@ export default function App() {
       balance: result.balance ?? +(u.balance + wonItem.amount).toFixed(6),
       totalEarned: result.totalEarned ?? +(u.totalEarned + wonItem.amount).toFixed(6),
     }));
-    setToast(`Кейс: +$${wonItem.amount.toFixed(4)} USDT`);
+    setToast(`Кейс: +${wonItem.amount} ADNEX`);
   }
 
   function handleRedeemPromo() {
@@ -2150,6 +2352,7 @@ export default function App() {
           : cc
       )
     );
+    setTotalAdsWatchedLifetime((n) => n + 1);
     setToast("+1 просмотр засчитан");
   }
 
@@ -2186,7 +2389,14 @@ export default function App() {
         />
       )}
       {screen === "referrals" && <ReferralsScreen data={{ ...mockReferrals, link: referralLink }} />}
-      {screen === "withdraw" && <WithdrawScreen user={user} history={mockWithdrawHistory} />}
+      {screen === "withdraw" && !withdrawUnlocked && (
+        <WithdrawLockScreen
+          progress={totalAdsWatchedLifetime}
+          required={withdrawLockConfig.requiredAdViews}
+          onGoWatchAds={() => setScreen("home")}
+        />
+      )}
+      {screen === "withdraw" && withdrawUnlocked && <WithdrawScreen user={user} history={mockWithdrawHistory} />}
 
       {adminOpen && (
         <AdminScreen
@@ -2209,6 +2419,9 @@ export default function App() {
           onUpdateWheelSegment={handleUpdateWheelSegment}
           onAddWheelSegment={handleAddWheelSegment}
           onDeleteWheelSegment={handleDeleteWheelSegment}
+          withdrawLockConfig={withdrawLockConfig}
+          onSaveWithdrawLock={handleSaveWithdrawLock}
+          savingWithdrawLock={savingWithdrawLock}
         />
       )}
 
@@ -2224,7 +2437,7 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav active={screen} onChange={setScreen} />
+      <BottomNav active={screen} onChange={setScreen} withdrawUnlocked={withdrawUnlocked} />
     </div>
   );
 }
