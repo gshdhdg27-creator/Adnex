@@ -233,17 +233,21 @@ function TopBar({ title = "ADNEX", isAdmin, onOpenAdmin }) {
   );
 }
 
-function BottomNav({ active, onChange, withdrawUnlocked }) {
+function BottomNav({ active, onChange, withdrawUnlocked, withdrawVisible }) {
   const items = [
     { id: "home", label: "Главная", icon: Home },
     { id: "tasks", label: "Задания", icon: ListChecks },
     { id: "bonuses", label: "Бонусы", icon: Gift },
     { id: "referrals", label: "Рефералы", icon: Users },
-    // Пока раздел не разблокирован — не выдаём его назначение ни иконкой, ни подписью
-    withdrawUnlocked
-      ? { id: "withdraw", label: "Вывод", icon: CreditCard }
-      : { id: "withdraw", label: "???", icon: Lock },
   ];
+  // Вывод временно скрыт для всех (управляется флагом withdraw_visible из админки)
+  if (withdrawVisible) {
+    items.push(
+      withdrawUnlocked
+        ? { id: "withdraw", label: "Вывод", icon: CreditCard }
+        : { id: "withdraw", label: "???", icon: Lock }
+    );
+  }
   return (
     <div
       className="fixed bottom-0 left-0 right-0 flex justify-around py-2.5"
@@ -1061,6 +1065,7 @@ function BonusesScreen({ wheelSpinsLeft, wheelSpinsMax, wheelSegments, wheelRota
 
 function ReferralsScreen({ data }) {
   const [copied, setCopied] = useState(false);
+  const list = data.list || [];
   return (
     <div className="px-4 pb-28" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ textAlign: "center", paddingTop: 8 }}>
@@ -1070,21 +1075,21 @@ function ReferralsScreen({ data }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Card style={{ padding: 20, textAlign: "center" }}>
-          <p style={{ color: theme.white, fontSize: 30, fontWeight: 700 }}>{data.count}</p>
+          <p style={{ color: theme.white, fontSize: 30, fontWeight: 700 }}>{data.count || 0}</p>
           <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>Рефералов</p>
         </Card>
         <Card style={{ padding: 20, textAlign: "center" }}>
-          <p style={{ color: theme.white, fontSize: 30, fontWeight: 700 }}>{Math.round(data.earned)}</p>
+          <p style={{ color: theme.white, fontSize: 30, fontWeight: 700 }}>{Math.round(data.earned || 0)}</p>
           <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>Заработано</p>
         </Card>
       </div>
 
       <Card style={{ padding: 16, display: "flex", alignItems: "center", gap: 12, background: `linear-gradient(90deg, ${theme.panel}, ${theme.card})`, border: `1px solid ${theme.accentSoftBorder}` }}>
         <div className="shrink-0" style={{ backgroundColor: theme.accentSoft, color: theme.accentLight, fontWeight: 700, fontSize: 14, width: 44, height: 44, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {data.percent}%
+          {data.percent || 20}%
         </div>
         <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, lineHeight: 1.4 }}>
-          Получай <span style={{ color: theme.white, fontWeight: 600 }}>{data.percent}%</span> от дохода каждого реферала за каждый просмотр рекламы
+          +{data.firstBonus || 5} ADNEX за каждого друга и <span style={{ color: theme.white, fontWeight: 600 }}>{data.percent || 20}%</span> от его заработка
         </p>
       </Card>
 
@@ -1093,28 +1098,66 @@ function ReferralsScreen({ data }) {
           Ваша ссылка
         </p>
         <Card style={{ padding: 16 }}>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, wordBreak: "break-all", marginBottom: 12 }}>{data.link}</p>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, wordBreak: "break-all", marginBottom: 12 }}>{data.link || "Открой приложение в Telegram"}</p>
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={() => {
+                if (!data.link) return;
                 navigator.clipboard?.writeText(data.link);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
-              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.05)", color: theme.white, fontSize: 14, fontWeight: 500, padding: "12px 0", borderRadius: 12 }}
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: theme.gradient, color: theme.white, fontSize: 14, fontWeight: 600, padding: "12px 0", borderRadius: 12 }}
             >
               <Copy size={16} /> {copied ? "Скопировано" : "Копировать"}
             </button>
-            <button style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: theme.gradient, color: theme.white, fontSize: 14, fontWeight: 500, padding: "12px 0", borderRadius: 12 }}>
+            <button
+              onClick={() => {
+                if (!data.link) return;
+                const tg = window.Telegram?.WebApp;
+                if (tg?.openTelegramLink) {
+                  tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(data.link)}&text=${encodeURIComponent("Зарабатывай ADNEX со мной!")}`);
+                } else {
+                  navigator.share?.({ url: data.link }).catch(() => {});
+                }
+              }}
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "rgba(255,255,255,0.08)", color: theme.white, fontSize: 14, fontWeight: 600, padding: "12px 0", borderRadius: 12 }}
+            >
               <Share2 size={16} /> Поделиться
             </button>
           </div>
         </Card>
       </div>
 
-      <p style={{ textAlign: "center", color: theme.textFaint, fontSize: 12 }}>
-        За первого реферала — бонус ${data.firstBonus.toFixed(2)}
-      </p>
+      <div>
+        <p style={{ fontSize: 11, letterSpacing: "0.08em", color: theme.textMuted, textTransform: "uppercase", marginBottom: 8, paddingLeft: 4 }}>
+          Твои рефералы
+        </p>
+        {list.length === 0 ? (
+          <Card style={{ padding: 20, textAlign: "center" }}>
+            <p style={{ color: theme.textFaint, fontSize: 14 }}>Пока никого нет — отправь ссылку друзьям</p>
+          </Card>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {list.map((r) => (
+              <Card key={r.telegramId} style={{ padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ color: theme.white, fontSize: 14, fontWeight: 600 }}>
+                    {r.username ? `@${r.username}` : `ID ${r.telegramId}`}
+                  </p>
+                  <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                    {r.joinedAt ? new Date(r.joinedAt).toLocaleDateString("ru-RU") : ""}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ color: theme.accentLight, fontSize: 14, fontWeight: 600 }}>+{Math.round(r.earnedFrom || 0)}</p>
+                  <p style={{ color: theme.textFaint, fontSize: 11 }}>тебе</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1837,8 +1880,8 @@ function AdminWithdrawLock({ config, onSave, saving }) {
   );
 }
 
-function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw, tasks, onAddTask, onDeleteTask, adNetworks, onUpdateNetwork, cases, onUpdateCasePoolItem, onAddCasePoolItem, onDeleteCasePoolItem, wheelConfig, onUpdateWheelConfig, wheelSegments, onUpdateWheelSegment, onAddWheelSegment, onDeleteWheelSegment, withdrawLockConfig, onSaveWithdrawLock, savingWithdrawLock }) {
-  const [tab, setTab] = useState("withdrawals");
+function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw, tasks, onAddTask, onDeleteTask, onSaveTasks, adNetworks, onUpdateNetwork, onSaveNetworks, cases, onUpdateCasePoolItem, onAddCasePoolItem, onDeleteCasePoolItem, onSaveCases, wheelConfig, onUpdateWheelConfig, wheelSegments, onUpdateWheelSegment, onAddWheelSegment, onDeleteWheelSegment, onSaveWheel, withdrawLockConfig, onSaveWithdrawLock, savingWithdrawLock, withdrawVisible, onToggleWithdrawVisible, referralCfg, onSaveReferralCfg, adsgramBlockId, onSaveAdsgram }) {
+  const [tab, setTab] = useState("tasks");
   const [realUsers, setRealUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
 
@@ -1861,14 +1904,18 @@ function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw
   }, [tab]);
 
   const tabs = [
-    { id: "withdrawals", label: `Выводы (${withdrawals.length})` },
     { id: "tasks", label: "Задания" },
     { id: "cases", label: "Кейсы" },
     { id: "wheel", label: "Барабан" },
-    { id: "users", label: `Пользователи (${realUsers.length})` },
-    { id: "networks", label: "Сети рекламы" },
-    { id: "withdrawLock", label: "Замок вывода" },
+    { id: "users", label: `Юзеры (${realUsers.length})` },
+    { id: "networks", label: "Реклама" },
+    { id: "referral", label: "Рефералы %" },
+    { id: "visibility", label: "Показ вывода" },
+    { id: "withdrawals", label: `Выводы (${withdrawals.length})` },
   ];
+  const [refPercent, setRefPercent] = useState(referralCfg?.percent ?? 20);
+  const [refBonus, setRefBonus] = useState(referralCfg?.firstBonus ?? 5);
+  const [blockIdInput, setBlockIdInput] = useState(adsgramBlockId || "");
 
   return (
     <div style={{ position: "fixed", inset: 0, backgroundColor: theme.bg, zIndex: 50, display: "flex", flexDirection: "column" }}>
@@ -1891,29 +1938,90 @@ function AdminScreen({ onClose, withdrawals, onApproveWithdraw, onRejectWithdraw
         {tab === "withdrawals" && (
           <AdminWithdrawals requests={withdrawals} onApprove={onApproveWithdraw} onReject={onRejectWithdraw} />
         )}
-        {tab === "tasks" && <AdminTasks tasks={tasks} onAdd={onAddTask} onDelete={onDeleteTask} />}
+        {tab === "tasks" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <AdminTasks tasks={tasks} onAdd={onAddTask} onDelete={onDeleteTask} />
+            <button onClick={onSaveTasks} style={{ background: theme.gradient, color: "#fff", fontWeight: 700, padding: "12px 0", borderRadius: 12 }}>
+              Сохранить задания на сервер
+            </button>
+          </div>
+        )}
         {tab === "cases" && (
-          <AdminCases
-            cases={cases}
-            onUpdatePoolItem={onUpdateCasePoolItem}
-            onAddPoolItem={onAddCasePoolItem}
-            onDeletePoolItem={onDeleteCasePoolItem}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <AdminCases
+              cases={cases}
+              onUpdatePoolItem={onUpdateCasePoolItem}
+              onAddPoolItem={onAddCasePoolItem}
+              onDeletePoolItem={onDeleteCasePoolItem}
+            />
+            <button onClick={onSaveCases} style={{ background: theme.gradient, color: "#fff", fontWeight: 700, padding: "12px 0", borderRadius: 12 }}>
+              Сохранить кейсы на сервер
+            </button>
+          </div>
         )}
         {tab === "wheel" && (
-          <AdminWheel
-            config={wheelConfig}
-            onUpdateConfig={onUpdateWheelConfig}
-            segments={wheelSegments}
-            onUpdateSegment={onUpdateWheelSegment}
-            onAddSegment={onAddWheelSegment}
-            onDeleteSegment={onDeleteWheelSegment}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <AdminWheel
+              config={wheelConfig}
+              onUpdateConfig={onUpdateWheelConfig}
+              segments={wheelSegments}
+              onUpdateSegment={onUpdateWheelSegment}
+              onAddSegment={onAddWheelSegment}
+              onDeleteSegment={onDeleteWheelSegment}
+            />
+            <button onClick={onSaveWheel} style={{ background: theme.gradient, color: "#fff", fontWeight: 700, padding: "12px 0", borderRadius: 12 }}>
+              Сохранить барабан на сервер
+            </button>
+          </div>
         )}
         {tab === "users" && <AdminUsers users={realUsers} loading={usersLoading} />}
-        {tab === "networks" && <AdminAdNetworks networks={adNetworks} onUpdate={onUpdateNetwork} />}
-        {tab === "withdrawLock" && (
-          <AdminWithdrawLock config={withdrawLockConfig} onSave={onSaveWithdrawLock} saving={savingWithdrawLock} />
+        {tab === "networks" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <AdminAdNetworks networks={adNetworks} onUpdate={onUpdateNetwork} />
+            <Card style={{ padding: 14 }}>
+              <p style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>Adsgram blockId</p>
+              <input value={blockIdInput} onChange={(e) => setBlockIdInput(e.target.value)} placeholder="block-xxxx"
+                style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, color: "#fff", padding: "10px 12px", marginBottom: 8 }} />
+              <button onClick={() => onSaveAdsgram(blockIdInput)} style={{ width: "100%", background: theme.gradient, color: "#fff", fontWeight: 700, padding: "10px 0", borderRadius: 10 }}>
+                Сохранить Adsgram
+              </button>
+            </Card>
+            <button onClick={onSaveNetworks} style={{ background: theme.gradient, color: "#fff", fontWeight: 700, padding: "12px 0", borderRadius: 12 }}>
+              Сохранить сети на сервер
+            </button>
+          </div>
+        )}
+        {tab === "referral" && (
+          <Card style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ color: theme.white, fontWeight: 700 }}>Реферальная программа</p>
+            <label style={{ color: theme.textMuted, fontSize: 12 }}>Процент с заработка реферала</label>
+            <input type="number" value={refPercent} onChange={(e) => setRefPercent(parseFloat(e.target.value) || 0)}
+              style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, color: "#fff", padding: "10px 12px" }} />
+            <label style={{ color: theme.textMuted, fontSize: 12 }}>Бонус за приглашение (ADNEX)</label>
+            <input type="number" value={refBonus} onChange={(e) => setRefBonus(parseFloat(e.target.value) || 0)}
+              style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, color: "#fff", padding: "10px 12px" }} />
+            <button onClick={() => onSaveReferralCfg({ percent: refPercent, firstBonus: refBonus })}
+              style={{ background: theme.gradient, color: "#fff", fontWeight: 700, padding: "12px 0", borderRadius: 12 }}>
+              Сохранить
+            </button>
+          </Card>
+        )}
+        {tab === "visibility" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <p style={{ color: theme.white, fontWeight: 700, marginBottom: 8 }}>Раздел «Вывод» у пользователей</p>
+              <p style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12 }}>
+                Сейчас: {withdrawVisible ? "ВИДЕН" : "СКРЫТ"}. Пока вывод не готов — держи скрытым.
+              </p>
+              <button
+                onClick={() => onToggleWithdrawVisible(!withdrawVisible)}
+                style={{ width: "100%", background: theme.gradient, color: "#fff", fontWeight: 700, padding: "12px 0", borderRadius: 12 }}
+              >
+                {withdrawVisible ? "Скрыть вывод у всех" : "Показать вывод всем"}
+              </button>
+            </Card>
+            <AdminWithdrawLock config={withdrawLockConfig} onSave={onSaveWithdrawLock} saving={savingWithdrawLock} />
+          </div>
         )}
       </div>
     </div>
@@ -1946,6 +2054,10 @@ export default function App() {
   const [cases, setCases] = useState(mockCases);
   const [checkedInToday, setCheckedInToday] = useState(false);
   const [promoCode, setPromoCode] = useState("");
+  const [referralsData, setReferralsData] = useState(mockReferrals);
+  const [withdrawVisible, setWithdrawVisible] = useState(false); // временно скрыт
+  const [adsgramBlockId, setAdsgramBlockId] = useState("");
+  const [referralCfg, setReferralCfg] = useState({ percent: 20, firstBonus: 5 });
 
   // ---- Реальная авторизация через Telegram + бэкенд ----
   const [authData, setAuthData] = useState(null); // { telegramId, username, balance, referralCode, ... }
@@ -1976,14 +2088,25 @@ export default function App() {
   }
 
   useEffect(() => {
-    // Настройки замка вывода — публичные, грузим независимо от того, в Telegram открыто или нет,
-    // чтобы даже при тестировании в браузере видно было актуальное значение из админки.
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
-        if (data.settings?.withdraw_lock) {
-          setWithdrawLockConfig(data.settings.withdraw_lock);
+        const s = data.settings || {};
+        if (s.withdraw_lock) setWithdrawLockConfig(s.withdraw_lock);
+        // false по умолчанию — вывод скрыт
+        setWithdrawVisible(s.withdraw_visible === true);
+        if (s.referral) {
+          setReferralCfg({ percent: Number(s.referral.percent ?? 20), firstBonus: Number(s.referral.firstBonus ?? 5) });
+          setReferralsData((prev) => ({ ...prev, percent: Number(s.referral.percent ?? 20), firstBonus: Number(s.referral.firstBonus ?? 5) }));
         }
+        if (s.adsgram?.blockId) setAdsgramBlockId(s.adsgram.blockId);
+        if (Array.isArray(s.tasks) && s.tasks.length) setTasks(s.tasks);
+        if (Array.isArray(s.ad_networks) && s.ad_networks.length) setAdNetworks(s.ad_networks);
+        if (s.wheel) {
+          if (s.wheel.config) setWheelConfig(s.wheel.config);
+          if (Array.isArray(s.wheel.segments) && s.wheel.segments.length) setWheelSegments(s.wheel.segments);
+        }
+        if (Array.isArray(s.cases) && s.cases.length) setCases(s.cases);
       })
       .catch((err) => console.error("Settings request failed:", err));
   }, []);
@@ -2056,13 +2179,42 @@ export default function App() {
           }
         });
         setTotalAdsWatchedLifetime(totalAdsLifetime);
+
+        // Реальные рефералы с сервера
+        const tg2 = window.Telegram?.WebApp;
+        if (tg2?.initData) {
+          fetch("/api/referrals", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData: tg2.initData }),
+          })
+            .then((r) => r.json())
+            .then((ref) => {
+              if (ref.error) return;
+              setReferralsData({
+                count: ref.count || 0,
+                earned: ref.earned || 0,
+                link: ref.link || "",
+                percent: ref.percent ?? 20,
+                firstBonus: ref.firstBonus ?? 5,
+                list: ref.list || [],
+              });
+              // Кейсы «пригласи N друзей» — реальный счётчик
+              setCases((prev) =>
+                prev.map((c) =>
+                  c.requiredRefs != null ? { ...c, currentRefs: ref.count || 0 } : c
+                )
+              );
+            })
+            .catch((e) => console.error("Referrals failed:", e));
+        }
       })
       .catch((err) => console.error("Auth request failed:", err));
   }, []);
 
   const referralLink = authData?.referralCode
     ? `https://t.me/${BOT_USERNAME}?startapp=${authData.referralCode}`
-    : mockReferrals.link; // пока не авторизовались (или открыто вне Telegram) — ссылки ещё нет
+    : (referralsData.link || mockReferrals.link);
 
   // Реальный Telegram ID текущего пользователя — берём напрямую из Telegram.WebApp,
   // не дожидаясь ответа бэкенда, чтобы админка появлялась сразу.
@@ -2091,9 +2243,20 @@ export default function App() {
     if (!net || net.viewsToday >= net.dailyLimit) return;
     const reward = net.reward;
 
+    // Реальная реклама Adsgram (если blockId задан в админке / настройках)
+    if (networkId === "adsgram" && adsgramBlockId && window.Adsgram) {
+      try {
+        const controller = window.Adsgram.init({ blockId: adsgramBlockId });
+        await controller.show();
+      } catch (e) {
+        setToast("Реклама не досмотрена — награда не начислена");
+        return;
+      }
+    }
+
     const result = await creditEarning(`ad_${networkId}`, reward, net.dailyLimit, "daily");
     if (!result.ok) {
-      setToast("Дневной лимит по этой сети исчерпан");
+      setToast(result.error || "Дневной лимит по этой сети исчерпан");
       return;
     }
 
@@ -2218,28 +2381,83 @@ export default function App() {
     setWheelSegments((prev) => (prev.length > 2 ? prev.filter((s) => s.id !== segId) : prev));
   }
 
-  // Сохраняет настройку замка "Вывод" на сервере — видно сразу всем пользователям, не только тебе.
+  async function adminSaveSetting(key, value) {
+    const tg = window.Telegram?.WebApp;
+    if (!tg?.initData) {
+      setToast("Открой в Telegram, чтобы сохранить на сервер");
+      return false;
+    }
+    const res = await fetch("/api/admin-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData, key, value }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setToast(data.error || "Не удалось сохранить");
+      return false;
+    }
+    return true;
+  }
+
   async function handleSaveWithdrawLock(newConfig) {
     setSavingWithdrawLock(true);
     try {
-      const tg = window.Telegram?.WebApp;
-      const res = await fetch("/api/admin-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initData: tg?.initData, key: "withdraw_lock", value: newConfig }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setToast(data.error || "Не удалось сохранить настройку");
-        return;
+      const ok = await adminSaveSetting("withdraw_lock", newConfig);
+      if (ok) {
+        setWithdrawLockConfig(newConfig);
+        setToast("Замок вывода сохранён");
       }
-      setWithdrawLockConfig(newConfig);
-      setToast("Настройка сохранена");
     } catch (err) {
-      console.error("admin-settings request failed", err);
-      setToast("Ошибка сети — попробуй ещё раз");
+      console.error(err);
+      setToast("Ошибка сети");
     } finally {
       setSavingWithdrawLock(false);
+    }
+  }
+
+  async function handleToggleWithdrawVisible(visible) {
+    const ok = await adminSaveSetting("withdraw_visible", visible);
+    if (ok) {
+      setWithdrawVisible(visible);
+      setToast(visible ? "Вывод показан пользователям" : "Вывод скрыт у всех");
+    }
+  }
+
+  async function handleSaveTasksToServer() {
+    const ok = await adminSaveSetting("tasks", tasks);
+    if (ok) setToast("Задания сохранены на сервере");
+  }
+
+  async function handleSaveNetworksToServer() {
+    const ok = await adminSaveSetting("ad_networks", adNetworks);
+    if (ok) setToast("Сети рекламы сохранены");
+  }
+
+  async function handleSaveWheelToServer() {
+    const ok = await adminSaveSetting("wheel", { config: wheelConfig, segments: wheelSegments });
+    if (ok) setToast("Барабан сохранён");
+  }
+
+  async function handleSaveCasesToServer() {
+    const ok = await adminSaveSetting("cases", cases);
+    if (ok) setToast("Кейсы сохранены");
+  }
+
+  async function handleSaveReferralCfg(cfg) {
+    const ok = await adminSaveSetting("referral", cfg);
+    if (ok) {
+      setReferralCfg(cfg);
+      setReferralsData((p) => ({ ...p, percent: cfg.percent, firstBonus: cfg.firstBonus }));
+      setToast("Реферальные % сохранены");
+    }
+  }
+
+  async function handleSaveAdsgram(blockId) {
+    const ok = await adminSaveSetting("adsgram", { blockId, enabled: true });
+    if (ok) {
+      setAdsgramBlockId(blockId);
+      setToast("Adsgram blockId сохранён");
     }
   }
 
@@ -2388,15 +2606,15 @@ export default function App() {
           onRedeemPromo={handleRedeemPromo}
         />
       )}
-      {screen === "referrals" && <ReferralsScreen data={{ ...mockReferrals, link: referralLink }} />}
-      {screen === "withdraw" && !withdrawUnlocked && (
+      {screen === "referrals" && <ReferralsScreen data={{ ...referralsData, link: referralLink || referralsData.link }} />}
+      {withdrawVisible && screen === "withdraw" && !withdrawUnlocked && (
         <WithdrawLockScreen
           progress={totalAdsWatchedLifetime}
           required={withdrawLockConfig.requiredAdViews}
           onGoWatchAds={() => setScreen("home")}
         />
       )}
-      {screen === "withdraw" && withdrawUnlocked && <WithdrawScreen user={user} history={mockWithdrawHistory} />}
+      {withdrawVisible && screen === "withdraw" && withdrawUnlocked && <WithdrawScreen user={user} history={mockWithdrawHistory} />}
 
       {adminOpen && (
         <AdminScreen
@@ -2407,21 +2625,31 @@ export default function App() {
           tasks={tasks}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
+          onSaveTasks={handleSaveTasksToServer}
           adNetworks={adNetworks}
           onUpdateNetwork={handleUpdateNetwork}
+          onSaveNetworks={handleSaveNetworksToServer}
           cases={cases}
           onUpdateCasePoolItem={handleUpdateCasePoolItem}
           onAddCasePoolItem={handleAddCasePoolItem}
           onDeleteCasePoolItem={handleDeleteCasePoolItem}
+          onSaveCases={handleSaveCasesToServer}
           wheelConfig={wheelConfig}
           onUpdateWheelConfig={handleUpdateWheelConfig}
           wheelSegments={wheelSegments}
           onUpdateWheelSegment={handleUpdateWheelSegment}
           onAddWheelSegment={handleAddWheelSegment}
           onDeleteWheelSegment={handleDeleteWheelSegment}
+          onSaveWheel={handleSaveWheelToServer}
           withdrawLockConfig={withdrawLockConfig}
           onSaveWithdrawLock={handleSaveWithdrawLock}
           savingWithdrawLock={savingWithdrawLock}
+          withdrawVisible={withdrawVisible}
+          onToggleWithdrawVisible={handleToggleWithdrawVisible}
+          referralCfg={referralCfg}
+          onSaveReferralCfg={handleSaveReferralCfg}
+          adsgramBlockId={adsgramBlockId}
+          onSaveAdsgram={handleSaveAdsgram}
         />
       )}
 
@@ -2437,7 +2665,7 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav active={screen} onChange={setScreen} withdrawUnlocked={withdrawUnlocked} />
+      <BottomNav active={screen} onChange={setScreen} withdrawUnlocked={withdrawUnlocked} withdrawVisible={withdrawVisible} />
     </div>
   );
 }

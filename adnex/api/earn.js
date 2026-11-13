@@ -1,6 +1,15 @@
 import { getPool } from "./_db.js";
 import { verifyTelegramInitData } from "./_telegram.js";
 
+async function getReferralPercent(pool) {
+  try {
+    const r = await pool.query("SELECT value FROM app_settings WHERE key = 'referral'");
+    return Number(r.rows[0]?.value?.percent ?? 20) / 100;
+  } catch {
+    return 0.2;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -21,6 +30,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Неверная подпись Telegram initData" });
   }
 
+  const reward = Number(amount);
+  if (!Number.isFinite(reward) || reward < 0 || reward > 100000) {
+    return res.status(400).json({ error: "Некорректная сумма" });
+  }
+
   const pool = getPool();
 
   try {
@@ -30,8 +44,12 @@ export default async function handler(req, res) {
     }
     const dbUser = userRes.rows[0];
 
+    if (dbUser.is_blocked) {
+      return res.status(403).json({ error: "Аккаунт заблокирован" });
+    }
+
     const isOnce = scope === "once";
-    const limit = dailyLimit || 1;
+    const limit = Math.max(1, Number(dailyLimit) || 1);
 
     const countQuery = isOnce
       ? "SELECT COALESCE(SUM(value),0) as total FROM daily_actions WHERE user_id = $1 AND action_key = $2"
@@ -40,37 +58,60 @@ export default async function handler(req, res) {
     const currentCount = Number(countRes.rows[0].total);
 
     if (currentCount >= limit) {
-      return res.status(409).json({ error: "Лимит на сегодня исчерпан", countToday: currentCount });
+      return res.status(409).json({ error: "Лимит исчерпан", countToday: currentCount });
     }
 
-    await pool.query(
-      "INSERT INTO daily_actions (user_id, action_key, action_date, value) VALUES ($1, $2, CURRENT_DATE, 1)",
-      [dbUser.id, actionKey]
-    );
+    // Транзакция: действие + баланс + реферал
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const updated = await pool.query(
-      "UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE id = $2 RETURNING balance, total_earned",
-      [amount, dbUser.id]
-    );
+      await client.query(
+        "INSERT INTO daily_actions (user_id, action_key, action_date, value) VALUES ($1, $2, CURRENT_DATE, 1)",
+        [dbUser.id, actionKey]
+      );
 
-    if (dbUser.referred_by && Number(amount) > 0) {
-      const bonus = Number(amount) * 0.2;
-      await pool.query(
-        "UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE id = $2",
-        [bonus, dbUser.referred_by]
-      );
-      await pool.query(
-        "INSERT INTO referral_earnings (referrer_id, referred_id, amount) VALUES ($1, $2, $3)",
-        [dbUser.referred_by, dbUser.id, bonus]
-      );
+      let newBalance = Number(dbUser.balance);
+      let newTotal = Number(dbUser.total_earned);
+
+      if (reward > 0) {
+        const updated = await client.query(
+          "UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE id = $2 RETURNING balance, total_earned",
+          [reward, dbUser.id]
+        );
+        newBalance = Number(updated.rows[0].balance);
+        newTotal = Number(updated.rows[0].total_earned);
+
+        if (dbUser.referred_by) {
+          const pct = await getReferralPercent(pool);
+          const bonus = +(reward * pct).toFixed(6);
+          if (bonus > 0) {
+            await client.query(
+              "UPDATE users SET balance = balance + $1, total_earned = total_earned + $1 WHERE id = $2",
+              [bonus, dbUser.referred_by]
+            );
+            await client.query(
+              "INSERT INTO referral_earnings (referrer_id, referred_id, amount, note) VALUES ($1, $2, $3, $4)",
+              [dbUser.referred_by, dbUser.id, bonus, actionKey]
+            );
+          }
+        }
+      }
+
+      await client.query("COMMIT");
+
+      return res.status(200).json({
+        ok: true,
+        balance: newBalance,
+        totalEarned: newTotal,
+        countToday: currentCount + 1,
+      });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
     }
-
-    return res.status(200).json({
-      ok: true,
-      balance: Number(updated.rows[0].balance),
-      totalEarned: Number(updated.rows[0].total_earned),
-      countToday: currentCount + 1,
-    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Database error" });

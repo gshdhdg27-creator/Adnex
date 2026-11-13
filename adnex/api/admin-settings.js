@@ -1,6 +1,17 @@
 import { getPool } from "./_db.js";
 import { verifyTelegramInitData } from "./_telegram.js";
 
+const ALLOWED_KEYS = new Set([
+  "withdraw_lock",
+  "withdraw_visible",
+  "referral",
+  "adsgram",
+  "tasks",
+  "ad_networks",
+  "wheel",
+  "cases",
+]);
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -9,6 +20,10 @@ export default async function handler(req, res) {
   const { initData, key, value } = req.body || {};
   if (!initData || !key || value === undefined) {
     return res.status(400).json({ error: "initData, key и value обязательны" });
+  }
+
+  if (!ALLOWED_KEYS.has(key)) {
+    return res.status(400).json({ error: `Ключ «${key}» не разрешён` });
   }
 
   const botToken = process.env.BOT_TOKEN;
@@ -35,7 +50,7 @@ export default async function handler(req, res) {
        ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, updated_at = now()`,
       [key, JSON.stringify(value)]
     );
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, key });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Database error" });

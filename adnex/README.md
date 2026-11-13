@@ -1,47 +1,42 @@
 # ADNEX
 
-Telegram Mini App: заработок USDT за просмотр рекламы. Барабан, кейсы, задания, рефералы, вывод средств.
+Telegram Mini App: заработок ADNEX за просмотр рекламы.  
+Барабан, кейсы, задания, рефералы. Вывод временно скрыт (включается в админке).
 
-## Структура проекта
+## Что работает
 
-```
-adnex/
-├── frontend/          # React + Vite — весь UI (Главная, Задания, Бонусы, Рефералы, Вывод, Админка)
-│   ├── src/
-│   │   ├── App.jsx    # вся логика и экраны приложения
-│   │   └── main.jsx   # точка входа
-│   └── package.json
-├── backend/           # Express — API (пока заготовка с TODO)
-│   ├── server.js
-│   ├── .env.example   # какие переменные окружения нужны
-│   └── package.json
-├── vercel.json        # конфиг деплоя (фронт + бэк на одном проекте)
-└── ARCHITECTURE.md     # полная схема БД и список эндпоинтов (добавь отдельным файлом, см. чат)
-```
+- Авторизация через Telegram `initData` (серверная проверка HMAC)
+- Баланс и лимиты только на бэкенде (`/api/earn`)
+- Рефералы: бонус за приглашение + % с заработка, реальный список
+- Барабан и кейсы с прогрессом, сохраняемым на сервере
+- Админ-панель: задания, кейсы, барабан, сети, реферальные %, показ вывода, пользователи
+- Adsgram: укажи `blockId` в админке → Реклама
 
-## Как загрузить в GitHub
+## Один раз: база данных
 
-1. Создай новый репозиторий на github.com (например `adnex`), **без** README/gitignore (у нас уже есть свои).
-2. Скачай этот проект и распакуй.
-3. В папке проекта выполни:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: ADNEX frontend + backend skeleton"
-   git branch -M main
-   git remote add origin https://github.com/ТВОЙ_НИК/adnex.git
-   git push -u origin main
-   ```
-   Если работаешь без терминала — на странице пустого репозитория GitHub есть кнопка **"uploading an existing file"**, можно перетащить папку прямо в браузере.
+В SQL Editor (Supabase/Neon) выполни файл `schema.sql`.
 
-## Как задеплоить на Vercel
+## Переменные окружения (Vercel)
 
-1. Зайди на vercel.com → **Add New Project** → **Import** свой репозиторий `adnex`.
-2. Vercel сам подхватит `vercel.json` — ничего в настройках менять не нужно.
-3. После первого деплоя получишь постоянный URL вида `adnex.vercel.app`.
+См. `.env.example`:
+- `BOT_TOKEN`
+- `BOT_USERNAME`
+- `ADMIN_TELEGRAM_ID`
+- `DATABASE_URL`
 
-## Дальше
+## Деплой
 
-- Локальный запуск фронтенда: `cd frontend && npm install && npm run dev`
-- Локальный запуск бэкенда: `cd backend && npm install && cp .env.example .env` (заполнить значения) `&& npm run dev`
-- Полную схему базы данных и список всех API-эндпоинтов — см. `ARCHITECTURE.md`.
+Корень проекта для Vercel — папка `adnex/` (где лежит `vercel.json`).
+
+1. Import репозитория, Root Directory = `adnex`
+2. Добавь env variables
+3. Deploy
+
+Локально фронт: `cd frontend && npm i && npm run dev`
+
+## Админка
+
+Открой Mini App своим Telegram-аккаунтом (id = `ADMIN_TELEGRAM_ID`).  
+Иконка шестерёнки справа сверху.
+
+**Важно:** после правок заданий / кейсов / барабана / сетей нажми «Сохранить … на сервер», иначе изменения только у тебя в сессии.
